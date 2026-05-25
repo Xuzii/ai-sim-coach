@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pitwall-mcp"
+version = "0.1.0"
+description = "An MCP server that exposes your sim-racing telemetry (ACC, iRacing) to Claude as a race engineer."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Kenneth Anthony" }]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "telemetry",
+    "sim-racing",
+    "assetto-corsa-competizione",
+    "iracing",
+    "claude",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment :: Simulation",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "mcp>=1.27,<2",
+    "pyarrow>=16",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "build", "twine", "pandas"]
+# Benchmark-only extras (bench/run.py): real token counts + process memory.
+bench = ["tiktoken", "psutil"]
+
+[project.scripts]
+pitwall = "pitwall.server:main"
+pitwall-capture = "pitwall.games.acc.capture:main"
+pitwall-inspect = "pitwall.games.acc.inspect:main"
+pitwall-scrub = "pitwall.games.acc.scrub:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pitwall"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/pitwall", "README.md", "LICENSE", "docs", "BENCHMARKS.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

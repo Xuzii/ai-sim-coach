@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Build / packaging
+build/
+dist/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+
+# Local data store (if ever created inside the repo)
+*.parquet
+pitwall.db
+
+# Raw shared-memory captures are large (100s of MB) and may contain a player
+# name. Keep them local -- but the scrubbed, slimmed CI fixture is committed.
+*.pwcap
+!tests/fixtures/*.pwcap
+
+# Local-only Claude Code permissions (per-developer)
+.claude/settings.local.json
+
+# Personal planning / career-strategy docs -- kept local, not for the public repo.
+# Remove these lines (or `git add -f`) if you decide to track them.
+ai-race-engineer-roadmap.md
+phase1-mcp-telemetry-plan.md

@@ -1,0 +1,6 @@
+# Normalise line endings: store text as LF in the repo, regardless of platform.
+* text=auto eol=lf
+
+# Binary artifacts must never be line-ending-converted.
+*.pwcap binary
+*.parquet binary

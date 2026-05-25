@@ -1,0 +1,156 @@
+{
+  "python": "3.14.3",
+  "tiktoken": true,
+  "psutil": true,
+  "ingest": {
+    "capture_file": "acc-spa.pwcap",
+    "capture_size_mb": 286.11,
+    "recorded_span_s": 360.0,
+    "native_physics_frames": 34815,
+    "graphics_frames": 34815,
+    "ingest_wall_s": 3.056,
+    "native_frames_per_s": 11393.0,
+    "realtime_speedup_x": 117.8,
+    "cpu_s": 2.844,
+    "cpu_utilisation_pct": 93.1,
+    "python_peak_mb": 53.4,
+    "rss_before_mb": 743.1,
+    "rss_after_mb": 812.7
+  },
+  "storage": {
+    "laps": 3,
+    "total_points": 17412,
+    "avg_points_per_lap": 5804.0,
+    "parquet_total_kib": 1512.8,
+    "parquet_per_lap_kib": 504.3,
+    "sqlite_total_kib": 52.0,
+    "sqlite_per_lap_bytes": 17749.0,
+    "bytes_per_lap_total_kib": 521.6,
+    "bytes_per_point": 89.0
+  },
+  "query_latency": {
+    "list_sessions": {
+      "median_ms": 0.12,
+      "p95_ms": 0.221,
+      "min_ms": 0.091,
+      "iterations": 200
+    },
+    "list_laps": {
+      "median_ms": 0.057,
+      "p95_ms": 0.084,
+      "min_ms": 0.035,
+      "iterations": 200
+    },
+    "list_laps_fastest": {
+      "median_ms": 0.042,
+      "p95_ms": 0.1,
+      "min_ms": 0.035,
+      "iterations": 200
+    },
+    "get_lap_summary": {
+      "median_ms": 0.119,
+      "p95_ms": 0.241,
+      "min_ms": 0.088,
+      "iterations": 200
+    },
+    "trace_summary": {
+      "median_ms": 4.378,
+      "p95_ms": 5.345,
+      "min_ms": 3.301,
+      "iterations": 100
+    },
+    "trace_full": {
+      "median_ms": 8.184,
+      "p95_ms": 9.828,
+      "min_ms": 5.85,
+      "iterations": 100
+    },
+    "trace_corner_full": {
+      "median_ms": 4.293,
+      "p95_ms": 5.144,
+      "min_ms": 3.321,
+      "iterations": 100
+    },
+    "compare_laps": {
+      "median_ms": 4.762,
+      "p95_ms": 5.545,
+      "min_ms": 3.685,
+      "iterations": 200
+    },
+    "get_sector_analysis": {
+      "median_ms": 0.091,
+      "p95_ms": 0.193,
+      "min_ms": 0.069,
+      "iterations": 200
+    },
+    "get_tire_history": {
+      "median_ms": 6.384,
+      "p95_ms": 7.341,
+      "min_ms": 5.245,
+      "iterations": 200
+    },
+    "export_lap_csv": {
+      "median_ms": 17.584,
+      "p95_ms": 19.286,
+      "min_ms": 14.947,
+      "iterations": 200
+    }
+  },
+  "token_budget": {
+    "get_telemetry_trace_by_detail_level": {
+      "summary": {
+        "bytes": 1786,
+        "est_tokens": 751
+      },
+      "low": {
+        "bytes": 7534,
+        "est_tokens": 3130
+      },
+      "medium": {
+        "bytes": 18237,
+        "est_tokens": 7703
+      },
+      "full": {
+        "bytes": 71406,
+        "est_tokens": 30565
+      },
+      "full_corner_2ch": {
+        "bytes": 26139,
+        "est_tokens": 10728
+      }
+    },
+    "other_tools": {
+      "list_sessions": {
+        "bytes": 226,
+        "est_tokens": 81
+      },
+      "list_laps": {
+        "bytes": 519,
+        "est_tokens": 187
+      },
+      "get_lap_summary": {
+        "bytes": 486,
+        "est_tokens": 173
+      },
+      "compare_laps": {
+        "bytes": 575,
+        "est_tokens": 211
+      },
+      "get_sector_analysis": {
+        "bytes": 340,
+        "est_tokens": 108
+      },
+      "get_tire_history": {
+        "bytes": 548,
+        "est_tokens": 247
+      }
+    }
+  },
+  "stdio_roundtrip": {
+    "spawn_to_initialize_s": 1.051,
+    "initialize_to_list_tools_s": 0.007,
+    "list_tools_to_first_call_s": 0.006,
+    "cold_start_to_first_tool_call_s": 1.064,
+    "tools_registered": 8
+  }
+}
