@@ -11,8 +11,11 @@ tracks by how much you need running:
 - **Track C — The real product (Claude Desktop):** prove Claude answers the five
   success-criteria questions over the MCP server.
 
-Phase 1 is "done and working as intended" when all three pass. Track A passes today;
-Track B is now a single command (`pitwall-ingest`); Track C depends on B.
+Phase 1 is "done and working as intended" when all three pass — **all three passed as of
+2026-05-25.** Track A passes on every run; Track B (live capture → store) is a single
+command (`pitwall-ingest`) and was exercised; Track C (Claude Desktop answering the five
+questions) was completed and recorded (the demo is `docs/demo.gif`). The steps below
+remain as the repeatable runbook.
 
 All commands are PowerShell from the repo root. The dev venv is `.venv`. The live data
 store lives at **`%LOCALAPPDATA%\pitwall`** (`pitwall.db` + `traces\` + `exports\`);
