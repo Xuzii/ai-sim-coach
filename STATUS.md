@@ -82,14 +82,10 @@ All remaining steps need an account or a running game, so they're yours to run.
    `phase1-mcp-telemetry-plan.md` (career strategy / target companies) are kept
    **local** — moved into `planning/`, which is gitignored as a whole. They will not
    appear in the public repo.
-1. **Push to GitHub + cut the v0.1.0 release.** Remote is
-   `https://github.com/Xuzii/ai-sim-coach`.
-   ```bash
-   git remote add origin https://github.com/Xuzii/ai-sim-coach.git
-   git push -u origin main --tags
-   ```
-   Then create the GitHub release from tag `v0.1.0`.
-2. **PyPI.** TestPyPI dry-run first, then real:
+1. ✅ **Pushed to GitHub (2026-05-25).** `main` + tag `v0.1.0` are live at
+   `https://github.com/Xuzii/ai-sim-coach`. **Still to do:** cut the GitHub *Release*
+   from tag `v0.1.0` — notes are drafted in local `planning/launch-materials.md`.
+2. **PyPI** (held 2026-05-25 — token not set up yet). TestPyPI dry-run first, then real:
    ```bash
    twine upload -r testpypi dist/*     # verify the listing renders
    twine upload dist/*                 # real PyPI (needs creds)
