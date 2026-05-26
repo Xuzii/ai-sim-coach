@@ -9,7 +9,9 @@ real laps to answer.
 
 **Status:** v0.1 — **ACC only**. iRacing live + `.ibt` backfill land in v0.2.
 
-> 🏁 Demo GIF coming with the v0.1 release.
+![pitwall demo — asking Claude Desktop about a real ACC session](https://raw.githubusercontent.com/Xuzii/ai-sim-coach/main/docs/demo.gif)
+
+> 🏁 Claude Desktop answering the five questions below over the `pitwall` MCP server, against a real Nürburgring / Ford Mustang GT3 session.
 
 ## What it feels like
 

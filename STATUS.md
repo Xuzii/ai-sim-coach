@@ -6,14 +6,17 @@
 
 ## TL;DR
 
-**The pipeline works end-to-end and every component is built and tested**, including
-against a real 286 MB ACC session and a one-time live drive-test. The **ingest gap is
-now closed**: the `pitwall-ingest` command populates the store the server reads — live
-as you drive (`--watch` keeps it running across sessions) or from a `.pwcap`
-(see [Ingest command](#ingest-command-shipped) below). The remaining work is purely
-**account-gated shipping** (GitHub push, PyPI upload, demo GIF, one community post) plus
-the final **Claude Desktop round-trip**. After Phase 1 ships, Phase 2 (the single-agent
-coach) begins.
+**Phase 1 is shipped.** The pipeline works end-to-end, every component is built and
+tested (ruff clean, 100 tests, build + `twine check` pass), it's verified against a real
+286 MB ACC session and a live drive-test, and the **`pitwall-ingest` command** populates
+the store the server reads — live as you drive (`--watch` across sessions) or from a
+`.pwcap` (see [Ingest command](#ingest-command-shipped)). The code is **public on GitHub**
+(`main` + tag `v0.1.0` at https://github.com/Xuzii/ai-sim-coach), the **Claude Desktop
+round-trip is done and recorded** (demo embedded in the README), and the store is verified
+to answer the five success-criteria questions. **Deferred (not blocking Phase 2):** PyPI
+upload (shelved — name `pitwall-mcp` is reserved/available), cutting the GitHub *Release*
+object from the tag, and the community post (draft ready in local
+`planning/launch-materials.md`). **Next up: Phase 2 — the single-agent coach.**
 
 ## Phase 1 at a glance
 
@@ -22,7 +25,8 @@ coach) begins.
 | **M1 — Foundation** | Canonical schema, SQLite+Parquet storage, synthetic-source ingest pipeline, FastMCP server + all 8 tools | ✅ Complete & verified |
 | **M2 — ACC reader** | Shared-memory capture, struct parsing, canonical mapping, offline replay + live reader, scrub/inspect tools | ✅ Complete & **live-verified** |
 | **Finish-line** | Benchmarks + harness, architecture diagram, README, git init + tag `v0.1.0`, build + `twine check` | ✅ Complete |
-| **Ship (account-gated)** | GitHub release, PyPI, demo GIF, Claude Desktop round-trip, community post | ⏭️ **You run these** (see below) |
+| **Ship** | GitHub push (`main` + `v0.1.0`), demo GIF recorded + embedded, Claude Desktop round-trip | ✅ **Done (2026-05-25)** |
+| **Deferred** | PyPI upload (shelved), GitHub *Release* object, community post | ⏸️ Optional, not blocking Phase 2 |
 
 ## Verified working (re-confirmed 2026-05-24)
 
@@ -74,32 +78,36 @@ It prints each lap as it lands and a summary line at the end. The store now runs
 mode so the MCP server can read it while `pitwall-ingest` writes (read-while-driving)
 without "database is locked"; expect `pitwall.db-wal`/`-shm` sidecars next to `pitwall.db`.
 
-## What's left to ship Phase 1 — you run these
+## Ship log — what's done and what's deferred
 
-All remaining steps need an account or a running game, so they're yours to run.
+Phase 1 is shipped. The done items:
 
 0. ✅ **Planning docs decided (2026-05-25).** `ai-race-engineer-roadmap.md` and
    `phase1-mcp-telemetry-plan.md` (career strategy / target companies) are kept
-   **local** — moved into `planning/`, which is gitignored as a whole. They will not
-   appear in the public repo.
+   **local** — moved into `planning/`, gitignored as a whole, so they never reach the
+   public repo.
 1. ✅ **Pushed to GitHub (2026-05-25).** `main` + tag `v0.1.0` are live at
-   `https://github.com/Xuzii/ai-sim-coach`. **Still to do:** cut the GitHub *Release*
-   from tag `v0.1.0` — notes are drafted in local `planning/launch-materials.md`.
-2. **PyPI** (held 2026-05-25 — token not set up yet). TestPyPI dry-run first, then real:
-   ```bash
-   twine upload -r testpypi dist/*     # verify the listing renders
-   twine upload dist/*                 # real PyPI (needs creds)
-   ```
-3. **Demo GIF.** Record Claude Desktop answering a telemetry question (ScreenToGif /
-   kap), drop it into the README placeholder.
-4. **Claude Desktop round-trip + community.** Install pitwall, wire it into
-   `claude_desktop_config.json`, **populate the store** with `pitwall-ingest`
-   (`pitwall-ingest --watch` and drive, or `pitwall-ingest a-session.pwcap`), and ask the
-   5 success-criteria questions for real — this is the last unproven hop (the data + query
-   layer are already proven). Full walkthrough: [`docs/verifying-phase-1.md`](docs/verifying-phase-1.md).
-   Then post once to r/simracing / a sim-racing Discord.
+   `https://github.com/Xuzii/ai-sim-coach`. Pre-push audit was clean (no secrets,
+   captures, or planning docs).
+2. ✅ **Claude Desktop round-trip done + recorded (2026-05-25).** The five
+   success-criteria questions were asked in Claude Desktop against the real store
+   (1 session, Nürburgring GP / Ford Mustang GT3, fastest valid **2:04.126**). The
+   recording was optimized to `docs/demo.gif` (~7.9 MB) and embedded at the top of the
+   README. The raw `.mp4` is gitignored and kept local.
 
-When 1–4 are done, **Phase 1 is shipped.**
+The deferred items (optional, **not** blocking Phase 2 — pick up anytime):
+
+- ⏸️ **PyPI** (shelved). Name `pitwall-mcp` is available on PyPI + TestPyPI. When ready,
+  TestPyPI dry-run first, then real:
+  ```bash
+  twine upload -r testpypi dist/*     # verify the listing renders
+  twine upload dist/*                 # real PyPI (needs creds)
+  ```
+- ⏸️ **GitHub *Release* object.** The tag `v0.1.0` is pushed but no Release was cut.
+  Notes are drafted in local `planning/launch-materials.md` §1; it's also the natural
+  home for the full demo `.mp4`.
+- ⏸️ **Community post.** Draft ready in `planning/launch-materials.md` §2 (r/simracing /
+  a sim-racing Discord).
 
 ## Then: Phase 2
 

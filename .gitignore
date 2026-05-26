@@ -18,6 +18,9 @@ venv/
 *.parquet
 pitwall.db
 
+# Raw screen recordings (large) -- the optimized docs/demo.gif is committed instead.
+*.mp4
+
 # Raw shared-memory captures are large (100s of MB) and may contain a player
 # name. Keep them local -- but the scrubbed, slimmed CI fixture is committed.
 *.pwcap

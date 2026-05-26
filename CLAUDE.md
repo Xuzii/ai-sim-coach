@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 1 in progress.** v0.1 scope is **ACC-only**; package name is **`pitwall`** (PyPI dist `pitwall-mcp`, import `pitwall`, console script `pitwall`).
+**Phase 1 SHIPPED (2026-05-25).** Next up: **Phase 2 — the single-agent coach.** v0.1
+scope is **ACC-only**; package name is **`pitwall`** (PyPI dist `pitwall-mcp`, import
+`pitwall`, console script `pitwall`).
 
 ### Current state — READ THIS FIRST
 
@@ -17,10 +19,12 @@ the real 286 MB capture works):
   live drive-test passed. Detailed write-up: `docs/milestone-1-summary.md` (§7 = ACC
   reader). Benchmarks: `BENCHMARKS.md`. Both real-data findings (sector-telescoping +
   `trackSPlineLength==0`) are FIXED.
-- ⏭️ **Remaining Phase 1 work is account-gated shipping** (GitHub push + v0.1.0 release,
-  PyPI upload, demo GIF, Claude Desktop round-trip, community post) — Kenneth runs these.
-  Full checklist + commands in `STATUS.md`; end-to-end verification runbook in
-  `docs/verifying-phase-1.md`.
+- ✅ **Phase 1 shipped:** code is public on GitHub (`main` + tag `v0.1.0` at
+  https://github.com/Xuzii/ai-sim-coach), the Claude Desktop round-trip was done and
+  recorded (demo at `docs/demo.gif`, embedded in the README). **Deferred / optional**
+  (not blocking Phase 2): PyPI upload (shelved; `pitwall-mcp` name reserved), cutting the
+  GitHub *Release* object from the tag, and one community post — drafts live in
+  gitignored `planning/launch-materials.md`. See `STATUS.md` for the ship log.
 - ✅ **Ingest gap closed (2026-05-25):** `pitwall-ingest` now wires driving → store
   (`src/pitwall/ingest/cli.py`, a thin wrapper over `pipeline.run(detect_source(...), conn)`).
   Three modes: `pitwall-ingest` (live, ends with the session), `pitwall-ingest file.pwcap`
