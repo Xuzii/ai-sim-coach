@@ -1,6 +1,6 @@
 # Milestone 1 — Foundation: what was built and how
 
-**Status:** complete and verified. ruff clean · 43/43 tests pass · wheel builds (`pitwall_mcp-0.1.0`) with `schema.sql` bundled · `pitwall` console script installed · all 8 MCP tools register.
+**Status:** complete and verified. ruff clean · **100/100 tests pass** (this doc now covers M1 *and* the M2 ACC reader in §7) · wheel builds (`pitwall_mcp-0.1.0`) with `schema.sql` bundled · all 5 console scripts installed (incl. `pitwall-ingest`) · all 8 MCP tools register. (The 43-test figure below is M1's original count and the 83 in §7 is the M2-reader snapshot; both predate the ingest command and its tests.)
 
 **Scope of M1:** the entire ingest → storage → MCP pipeline, testable end-to-end against a *synthetic* telemetry generator — i.e. everything that does **not** require ACC to be running. The live ACC reader is Milestone 2.
 
@@ -125,7 +125,7 @@ A test (`test_detail_level_response_sizes_are_ordered`) asserts `summary < low <
 ## 7. Milestone 2 — the ACC reader (C3): BUILT & validated offline
 
 **Status (updated 2026-05-24):** the offline reader batch is **done** — built and
-validated against a real captured session, ruff clean, 80/80 tests pass. What
+validated against a real captured session, ruff clean, 83/83 tests pass. What
 landed under `src/pitwall/games/acc/`:
 
 - **`structs.py`** — the three ctypes pages (`SPageFilePhysics` 800 B,
@@ -149,7 +149,7 @@ landed under `src/pitwall/games/acc/`:
   lazy so the module imports on non-Windows).
 - **`scrub.py`** (+`pitwall-scrub`) and **`inspect.py`** (+`pitwall-inspect`)
   consoles. A scrubbed, slimmed CI fixture
-  `tests/fixtures/acc-nurburgring-slim.pwcap` (1.78 MiB, player name removed,
+  `tests/fixtures/acc-nurburgring-slim.pwcap` (1.56 MiB, player name removed,
   pages truncated to struct size, windowed across a lap crossing) lets
   `test_acc_reader.py` drive the *whole* pipeline in CI without the game.
 

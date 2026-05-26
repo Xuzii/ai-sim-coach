@@ -92,11 +92,20 @@ def connect(db_file: str | Path | None = None) -> sqlite3.Connection:
     """Open a connection with row access by name and foreign keys enforced.
 
     ``db_file=None`` uses the configured data dir (``PITWALL_DATA_DIR`` in tests).
+
+    For on-disk databases we enable WAL journaling and a busy timeout so the MCP
+    server can read the store while ``pitwall-ingest`` writes to it concurrently
+    (read-while-driving) without hitting "database is locked". WAL is a persistent
+    property of the database file, so setting it here is idempotent. In-memory
+    databases (tests) don't support WAL and skip it.
     """
     target = str(db_file) if db_file is not None else str(paths.db_path())
     conn = sqlite3.connect(target)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    if ":memory:" not in target and "mode=memory" not in target:
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA busy_timeout = 5000")  # ms: wait out a transient lock instead of failing
     return conn
 
 

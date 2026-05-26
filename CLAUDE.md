@@ -6,22 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Phase 1 in progress.** v0.1 scope is **ACC-only**; package name is **`pitwall`** (PyPI dist `pitwall-mcp`, import `pitwall`, console script `pitwall`).
 
-### Current state — READ THIS FIRST (last updated 2026-05-24)
+### Current state — READ THIS FIRST
 
-- ✅ **Milestone 1 (Foundation) COMPLETE & verified.** Chunks C0–C4 done: canonical schema, SQLite+Parquet storage, the synthetic-source ingest pipeline (downsample → segment → persist), and the FastMCP server with all 8 tools. ruff clean, wheel builds. The whole pipeline works against synthetic data with no game running. Full write-up: **`docs/milestone-1-summary.md`**.
-- ✅ **Milestone 2 — ACC reader (chunk C3): COMPLETE & live-verified** (ruff clean, **83/83 tests pass**, wheel builds with only `src/pitwall` + all 4 console scripts). Capture tool (`shm.py`/`recording.py`/`capture.py`) plus the reader: **`structs.py`** (three ctypes pages, `_pack_=4`, sizeof+offset asserts, UTF-16-LE byte-array strings for cross-platform layout), **`mapping.py`** (pure struct→canonical: gear−1, fuel×0.745, `carCoordinates[playerCarID]`, wheel order, `g_lat = −accG[0]`), **`reader.py`** (`ACCSource` over a `FrameStream`: `RecordingFrameStream` offline replay + `LiveFrameStream` that terminates when the session ends), **`detect_source()`** in `ingest/source.py` (lazy ACC imports; iRacing v0.2 stub), plus **`scrub.py`/`inspect.py`** with `pitwall-scrub`/`pitwall-inspect`. A live 360 s drive-test (2 full laps + deliberate off-track) confirmed multi-lap landing, off-track→`is_valid=False`, and the **accG axis/sign**. CI fixture: **`tests/fixtures/acc-nurburgring-slim.pwcap`** (1.56 MiB, scrubbed, a valid lap + the off-track invalid lap). Write-up: `docs/milestone-1-summary.md` §7. **Both real-data findings (sector-telescoping + `trackSPlineLength==0`) are FIXED.**
-- ✅ **Phase 1 finish-line — autonomous work COMPLETE (2026-05-24).** Done in this batch:
-  - **`bench/run.py`** — reproducible harness (`pip install -e ".[bench]"` adds tiktoken+psutil) measuring ingest throughput, storage/lap, per-tool query latency, the token/detail-level curve, and stdio cold-start. **`bench/verify_success_criteria.py`** runs the 5 plan queries on real data. Both write/print real numbers; `bench/results.json` is the committed snapshot.
-  - **`BENCHMARKS.md`** — headline real numbers off the 286 MB Nürburgring capture: **ingest 3.06 s / 117× realtime**, **cold-start→first-tool-call 1.06 s** (plan goal <3 s), metadata tools in µs / trace tools 4–8 ms, **summary trace ~750 tokens vs ~30k full** (41×). Honest storage finding: float telemetry is ~incompressible (89 B/pt, byte-stream-split a no-op, zstd-19 only −13%) → kept zstd-3, documented, ~0.5 MiB/lap.
-  - **`docs/architecture.md`** (full Mermaid diagram) + a condensed one embedded in **README** (rewritten: real Q&A examples, install, perf highlights, ACC-same-machine note, Kunos acknowledgement).
-  - **`git init`** (branch `main`), `.gitattributes` (LF), `.gitignore` updated (ignores root `*.pwcap`+`.claude/settings.local.json`+the two **personal planning docs**, keeps the fixture). One clean **initial commit** + local **annotated tag `v0.1.0`**. `python -m build` + `twine check` PASS; wheel ships `pitwall/`+4 scripts, sdist carries BENCHMARKS.md+docs.
-- ⏭️ **NEXT — account-gated ship steps (Kenneth runs these), then Phase 2:**
-  1. **Push to GitHub** (`git remote add` + `git push -u origin main --tags`) + cut the v0.1.0 GitHub release. **Decide first** whether to track `ai-race-engineer-roadmap.md` / `phase1-mcp-telemetry-plan.md` (currently gitignored as personal/career docs).
-  2. **TestPyPI dry-run → PyPI** (`twine upload -r testpypi dist/*` then real) — needs PyPI creds.
-  3. **Demo GIF** (ScreenToGif/kap) of Claude Desktop answering a query with telemetry visible; drop into README (placeholder is there).
-  4. **Run the 5 success-criteria queries through real Claude Desktop** on this data (the query layer + data are already proven via `bench/verify_success_criteria.py`); **≥1 Reddit/Discord post**.
-  5. **Then Phase 2** — the single-agent coach (ingest a lap → structured + human-readable feedback).
-- Cadence is **autonomous batches with milestone check-ins** (Kenneth's choice).
+**Canonical, always-current status lives in [`STATUS.md`](STATUS.md).** Read it before
+acting on anything in this section. Summary as of **2026-05-25** (re-verified: ruff
+clean, **100/100 tests**, wheel+sdist build, `twine check` passes, end-to-end ingest of
+the real 286 MB capture works):
+
+- ✅ **M1 (Foundation)** and ✅ **M2 (ACC reader)** are complete and verified; M2's
+  live drive-test passed. Detailed write-up: `docs/milestone-1-summary.md` (§7 = ACC
+  reader). Benchmarks: `BENCHMARKS.md`. Both real-data findings (sector-telescoping +
+  `trackSPlineLength==0`) are FIXED.
+- ⏭️ **Remaining Phase 1 work is account-gated shipping** (GitHub push + v0.1.0 release,
+  PyPI upload, demo GIF, Claude Desktop round-trip, community post) — Kenneth runs these.
+  Full checklist + commands in `STATUS.md`; end-to-end verification runbook in
+  `docs/verifying-phase-1.md`.
+- ✅ **Ingest gap closed (2026-05-25):** `pitwall-ingest` now wires driving → store
+  (`src/pitwall/ingest/cli.py`, a thin wrapper over `pipeline.run(detect_source(...), conn)`).
+  Three modes: `pitwall-ingest` (live, ends with the session), `pitwall-ingest file.pwcap`
+  (replay), `pitwall-ingest --watch` (daemon — auto-ingest each session back-to-back). The
+  5 console scripts are now `pitwall` (server, reads only), `pitwall-capture` (raw bytes →
+  `.pwcap`), **`pitwall-ingest`** (writes the store), `pitwall-inspect`, `pitwall-scrub`.
+
+**Coding gotchas (live-verified, don't re-derive):** `g_lat = −accG[0]` (positive =
+right); ACC reports `trackSPlineLength == 0` so distances come from `TRACK_LENGTHS` in
+`naming.py` (nurburgring GP = 5148 m); **two concurrent `pitwall-capture` processes
+corrupt the recording — run exactly one**; lap/sector times are wall-clock, not ACC's
+unreliable `lastSectorTime`/`iLastTime`; the store runs in **WAL** (`db.connect` enables it
+for on-disk DBs only) so the server reads while `pitwall-ingest` writes — in-memory test
+DBs skip WAL.
+
+Cadence is **autonomous batches with milestone check-ins** (Kenneth's choice).
 
 Planning documents:
 

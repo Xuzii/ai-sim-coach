@@ -44,7 +44,17 @@ Add it to your Claude Desktop config (`claude_desktop_config.json`):
 }
 ```
 
-Restart Claude Desktop, launch ACC, drive some laps, and ask Claude about them.
+Restart Claude Desktop. Then, to get your driving into the store Claude reads, run the
+ingest command while you drive:
+
+```bash
+pitwall-ingest --watch      # start once; auto-ingests every session as you drive
+# or, one session at a time / from a saved recording:
+pitwall-ingest              # live, ends when the ACC session does
+pitwall-ingest session.pwcap   # ingest a previously captured .pwcap
+```
+
+Launch ACC, drive some laps, and ask Claude about them.
 
 > **Note:** ACC's Shared Memory only exists while ACC is running on the *same
 > machine*. Install pitwall first; if you ask before driving, it tells you so
@@ -109,7 +119,7 @@ reproduction steps in [BENCHMARKS.md](BENCHMARKS.md):
 python -m venv .venv && .venv\Scripts\activate   # Windows
 pip install -e ".[dev]"
 ruff check .
-pytest                                            # 83 tests, no game required
+pytest                                            # 100 tests, no game required
 python bench/run.py                               # reproduce the benchmarks
 ```
 

@@ -10,7 +10,7 @@ changes between laps.
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 
 from pitwall import channels
@@ -173,8 +173,14 @@ def run(
     *,
     target_hz: float = 50.0,
     min_points: int = 20,
+    on_lap: Callable[[int, int | None], None] | None = None,
 ) -> int:
-    """Ingest a whole session from ``source`` into ``conn``. Returns the session id."""
+    """Ingest a whole session from ``source`` into ``conn``. Returns the session id.
+
+    ``on_lap`` (optional) is invoked once per committed lap with
+    ``(lap_number, lap_time_ms)`` -- purely a progress hook for callers like the
+    ``pitwall-ingest`` CLI. It defaults to None and changes nothing about ingestion.
+    """
     info: StaticInfo = source.static_info()
     session_id = db.insert_session(
         conn,
@@ -210,5 +216,7 @@ def run(
         )
         times, starts, ends = _sector_breakdown(buf, info.sector_count)
         db.insert_sectors(conn, lap_id, times, start_distances=starts, end_distances=ends)
+        if on_lap is not None:
+            on_lap(buf.lap_count + 1, int(round((buf.end_t - buf.start_t) * 1000)))
 
     return session_id

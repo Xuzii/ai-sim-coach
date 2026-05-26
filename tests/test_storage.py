@@ -44,6 +44,21 @@ def test_apply_schema_is_idempotent():
     assert rows == 1
 
 
+def test_connect_enables_wal_on_disk(data_dir):
+    # On-disk store: WAL lets the MCP server read while pitwall-ingest writes.
+    conn = db.connect()
+    mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    assert mode.lower() == "wal"
+    conn.close()
+
+
+def test_connect_memory_skips_wal():
+    # In-memory DBs (tests) don't support WAL and must be left alone.
+    conn = db.connect(":memory:")
+    mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    assert mode.lower() == "memory"
+
+
 def test_session_lap_sector_roundtrip():
     conn = _open()
     sid = _seed_session(conn)

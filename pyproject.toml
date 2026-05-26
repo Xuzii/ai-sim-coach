@@ -43,6 +43,7 @@ bench = ["tiktoken", "psutil"]
 [project.scripts]
 pitwall = "pitwall.server:main"
 pitwall-capture = "pitwall.games.acc.capture:main"
+pitwall-ingest = "pitwall.ingest.cli:main"
 pitwall-inspect = "pitwall.games.acc.inspect:main"
 pitwall-scrub = "pitwall.games.acc.scrub:main"
 
