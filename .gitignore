@@ -26,7 +26,7 @@ pitwall.db
 # Local-only Claude Code permissions (per-developer)
 .claude/settings.local.json
 
-# Personal planning / career-strategy docs -- kept local, not for the public repo.
-# Remove these lines (or `git add -f`) if you decide to track them.
-ai-race-engineer-roadmap.md
-phase1-mcp-telemetry-plan.md
+# Personal planning / career-strategy docs -- kept local in planning/, not for
+# the public repo (they name target companies / career strategy). The whole
+# folder is ignored; drop a file elsewhere if you ever want to track it.
+planning/

@@ -76,17 +76,16 @@ without "database is locked"; expect `pitwall.db-wal`/`-shm` sidecars next to `p
 
 ## What's left to ship Phase 1 — you run these
 
-All remaining steps need an account or a running game, so they're yours to run. Step 0
-is a **decision**, not a command.
+All remaining steps need an account or a running game, so they're yours to run.
 
-0. **Decide on the two planning docs.** `ai-race-engineer-roadmap.md` and
-   `phase1-mcp-telemetry-plan.md` are currently **gitignored** because they contain
-   career strategy / target companies. If you push to a *public* repo as-is they stay
-   local. To track them, remove their two lines from `.gitignore` (or `git add -f`).
-   **Make this call before the first push.**
-1. **Push to GitHub + cut the v0.1.0 release.**
+0. ✅ **Planning docs decided (2026-05-25).** `ai-race-engineer-roadmap.md` and
+   `phase1-mcp-telemetry-plan.md` (career strategy / target companies) are kept
+   **local** — moved into `planning/`, which is gitignored as a whole. They will not
+   appear in the public repo.
+1. **Push to GitHub + cut the v0.1.0 release.** Remote is
+   `https://github.com/Xuzii/ai-sim-coach`.
    ```bash
-   git remote add origin <your-repo-url>
+   git remote add origin https://github.com/Xuzii/ai-sim-coach.git
    git push -u origin main --tags
    ```
    Then create the GitHub release from tag `v0.1.0`.

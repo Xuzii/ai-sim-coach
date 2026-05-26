@@ -40,8 +40,8 @@ Cadence is **autonomous batches with milestone check-ins** (Kenneth's choice).
 
 Planning documents:
 
-- `ai-race-engineer-roadmap.md` — the full 6-phase project + career-pivot roadmap (16–18 weeks). Big-picture "why" and sequencing.
-- `phase1-mcp-telemetry-plan.md` — the original Phase 1 spec (day-by-day).
+- `planning/ai-race-engineer-roadmap.md` — the full 6-phase project + career-pivot roadmap (16–18 weeks). Big-picture "why" and sequencing. (Local-only; `planning/` is gitignored.)
+- `planning/phase1-mcp-telemetry-plan.md` — the original Phase 1 spec (day-by-day). (Local-only.)
 - `~/.claude/plans/i-need-you-fluffy-clock.md` — the chunked execution plan (C0–C8, 3 milestones).
 
 The end product is an AI race engineer: a Claude-powered, multi-agent coaching system for sim racing (ACC, iRacing) and HPDE track driving. Phase 1 builds the foundation: an MCP server that ingests live telemetry and exposes it to Claude as tools.
