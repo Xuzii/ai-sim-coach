@@ -20,8 +20,11 @@ print, and the human summary are the only new logic. ACC-only imports
 mirroring :mod:`pitwall.ingest.source` -- so this module imports on any OS:
 replay works everywhere; live/watch only do anything on Windows with ACC running.
 
-The wait-for-live poll takes injectable ``clock``/``sleep``/``mapping_present`` so
-the watch loop is exercised in tests with no game and no real waiting.
+The watch loop ingests only once an ACC session is actually LIVE (on track), not
+merely when the shared-memory pages exist -- those persist in the menus/garage, so
+gating on existence spun out empty sessions. The poll takes injectable
+``clock``/``sleep``/``is_live`` so the loop is exercised in tests with no game and
+no real waiting.
 """
 
 from __future__ import annotations
@@ -77,8 +80,9 @@ def ingest_once(
     progress: Callable[[str], None] | None = print,
     target_hz: float = 50.0,
     min_points: int = 20,
-) -> int:
-    """Resolve a source and ingest one whole session into ``conn``; return its id.
+) -> int | None:
+    """Resolve a source and ingest one whole session into ``conn``; return its id,
+    or ``None`` if the session produced no complete lap (nothing was written).
 
     Live when ``recording_path`` is None, else replay. Each lap is printed as it
     commits (via ``pipeline.run``'s ``on_lap`` hook) so a live session isn't a
@@ -96,28 +100,57 @@ def ingest_once(
     return pipeline.run(source, conn, target_hz=target_hz, min_points=min_points, on_lap=on_lap)
 
 
+def _acc_session_live() -> bool:
+    """True only while ACC is in an on-track LIVE session.
+
+    ACC's shared-memory pages exist for the whole time the game *process* runs --
+    including in the menus, the garage, and replays -- so page existence is **not**
+    a signal that a session has started. The graphics page's ``status`` is: it reads
+    ``LIVE`` only when you're actually on track. Gating the watch daemon on this
+    (rather than ``mapping_exists``) is what stops it from spinning out empty
+    sessions while you sit in the menu. Returns False -- never raises -- when ACC
+    isn't running. Windows-only imports are deferred so this module loads anywhere.
+    """
+    from pitwall.games.acc.shm import GRAPHICS, GameNotRunningError, mapping_exists, open_page, probe_size
+    from pitwall.games.acc.structs import AcStatus, parse_graphics
+
+    if not mapping_exists(GRAPHICS):
+        return False
+    try:
+        size = probe_size(GRAPHICS)
+        page = open_page(GRAPHICS, size)
+        try:
+            return parse_graphics(bytes(page[:size])).status == AcStatus.LIVE
+        finally:
+            page.close()
+    except GameNotRunningError:
+        return False
+
+
 def _wait_for_live(
     *,
-    mapping_present: Callable[[], bool],
+    is_live: Callable[[], bool],
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     poll_s: float = 2.0,
     progress: Callable[[str], None] | None = print,
     stop_after_s: float | None = None,
 ) -> bool:
-    """Block until ACC's physics page exists again (the next session has started).
+    """Block until ACC is in an on-track LIVE session (``is_live()`` is True).
 
-    Returns True once present, or False if ``stop_after_s`` elapses first (used to
-    bound the loop in tests). ``clock``/``sleep``/``mapping_present`` are injectable
-    so this runs offline with no game and no real waiting.
+    Returns True once live, or False if ``stop_after_s`` elapses first (used to
+    bound the loop in tests). ``clock``/``sleep``/``is_live`` are injectable so this
+    runs offline with no game and no real waiting. Note ``is_live`` checks the
+    session *status*, not just shared-memory page existence: the pages also exist in
+    the menus/garage, where there is nothing to ingest.
     """
     start = clock()
     announced = False
-    while not mapping_present():
+    while not is_live():
         if stop_after_s is not None and (clock() - start) >= stop_after_s:
             return False
         if progress is not None and not announced:
-            progress("waiting for the next ACC session... (Ctrl-C to stop)")
+            progress("waiting for an ACC session -- go on track to start ingesting. (Ctrl-C to stop)")
             announced = True
         sleep(poll_s)
     return True
@@ -130,18 +163,23 @@ def run_watch(
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     max_sessions: int | None = None,
+    is_live: Callable[[], bool] | None = None,
 ) -> int:
     """Loop: wait-for-live -> ingest one session -> repeat. Returns sessions ingested.
 
     Each iteration is exactly one ``detect_source()`` + ``pipeline.run`` (they are
-    one-session-per-call). ``KeyboardInterrupt`` breaks the loop cleanly -- laps
-    from the in-flight session are already committed incrementally. Any *other*
-    error in a session is logged and the loop keeps watching, so one bad session
-    can't take the daemon down (it would otherwise stop recording silently for the
-    rest of the day). ``max_sessions`` bounds the loop in tests; None is unbounded
-    (the real daemon).
+    one-session-per-call). The loop only ingests once ``is_live()`` reports an
+    on-track session (defaults to :func:`_acc_session_live`); gating on session
+    *status* rather than page existence is what stops the daemon from busy-looping
+    out empty sessions while ACC sits in the menu. A session that produces no lap
+    writes nothing and is not counted. ``KeyboardInterrupt`` breaks the loop cleanly
+    -- laps from the in-flight session are already committed incrementally. Any
+    *other* error in a session is logged and the loop keeps watching, so one bad
+    session can't take the daemon down (it would otherwise stop recording silently
+    for the rest of the day). ``max_sessions`` bounds the loop in tests; None is
+    unbounded (the real daemon).
     """
-    from pitwall.games.acc.shm import PHYSICS, mapping_exists  # lazy: Windows-only
+    live = is_live if is_live is not None else _acc_session_live
 
     def report(msg: str) -> None:
         if progress is not None:
@@ -150,12 +188,7 @@ def run_watch(
     count = 0
     try:
         while max_sessions is None or count < max_sessions:
-            if not _wait_for_live(
-                mapping_present=lambda: mapping_exists(PHYSICS),
-                clock=clock,
-                sleep=sleep,
-                progress=progress,
-            ):
+            if not _wait_for_live(is_live=live, clock=clock, sleep=sleep, progress=progress):
                 break
             report("ACC session detected -- ingesting (drive!).")
             try:
@@ -165,6 +198,9 @@ def run_watch(
             except Exception as exc:  # noqa: BLE001 -- a daemon must outlive a bad session
                 report(f"session ingest failed: {exc!r} -- still watching.")
                 sleep(2.0)  # avoid a hot retry loop if the fault is persistent
+                continue
+            if session_id is None:
+                report("session ended with no complete lap -- nothing ingested, still watching.")
                 continue
             report(_summarize(conn, session_id))
             count += 1
@@ -232,6 +268,9 @@ def main(argv: list[str] | None = None) -> int:
             session_id = ingest_once(conn, recording_path=args.recording)
         except KeyboardInterrupt:
             print("\nstopped -- already-ingested laps are saved.", file=sys.stderr)
+            return 0
+        if session_id is None:
+            print("no complete lap was recorded -- were you on track? nothing was ingested.")
             return 0
         print(_summarize(conn, session_id))
         return 0

@@ -8,16 +8,35 @@ runs against injected clock/sleep. Mirrors ``test_acc_capture.py`` style.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 from pitwall.games.acc.shm import GameNotRunningError
 from pitwall.ingest import cli, pipeline
+from pitwall.ingest.frames import CanonicalFrame, StaticInfo
+from pitwall.ingest.source import TelemetrySource
 from pitwall.ingest.synthetic import SyntheticACCSource
 from pitwall.storage import db
 
 FIXTURE = Path(__file__).parent / "fixtures" / "acc-nurburgring-slim.pwcap"
 # Same small, fast synthetic session the ingest tests use (8 laps, Spa / 720S).
 TEST_KWARGS = dict(track_length_m=2400.0, native_hz=150.0)
+
+
+class _NoLapSource(TelemetrySource):
+    """A live source that goes LIVE but yields no frames -- e.g. the driver leaves
+    before completing a lap. ``pipeline.run`` must return None and write nothing."""
+
+    native_hz = 150.0
+
+    def static_info(self) -> StaticInfo:
+        return StaticInfo(
+            game="acc", track_code="spa", car_code="mclaren_720s_gt3",
+            started_at_utc="2026-05-27T00:00:00Z",
+        )
+
+    def frames(self) -> Iterator[CanonicalFrame]:
+        return iter(())
 
 
 def _clock_from(values: list[float]):
@@ -103,17 +122,17 @@ def test_summarize_line(data_dir):
 
 
 # --------------------------------------------------------------------------- #
-# _wait_for_live
+# _wait_for_live  (gates on session status, not page existence)
 # --------------------------------------------------------------------------- #
-def test_wait_for_live_returns_when_page_appears():
+def test_wait_for_live_returns_when_session_goes_live():
     calls = {"n": 0}
 
-    def present() -> bool:
+    def live() -> bool:
         calls["n"] += 1
-        return calls["n"] >= 3  # False, False, then True
+        return calls["n"] >= 3  # not live, not live, then live (on track)
 
     ok = cli._wait_for_live(
-        mapping_present=present, clock=lambda: 0.0, sleep=lambda _s: None, progress=None
+        is_live=live, clock=lambda: 0.0, sleep=lambda _s: None, progress=None
     )
     assert ok is True
     assert calls["n"] == 3
@@ -121,7 +140,7 @@ def test_wait_for_live_returns_when_page_appears():
 
 def test_wait_for_live_times_out():
     ok = cli._wait_for_live(
-        mapping_present=lambda: False,
+        is_live=lambda: False,
         clock=_clock_from([0.0, 1.0]),  # start=0.0, first check=1.0 >= stop_after
         sleep=lambda _s: None,
         progress=None,
@@ -132,9 +151,12 @@ def test_wait_for_live_times_out():
 
 # --------------------------------------------------------------------------- #
 # run_watch (loop reuses detect_source + pipeline.run per session)
+#
+# ``is_live`` is injected (the real one reads ACC's graphics status); the loop
+# gates on a LIVE session, never on bare page existence -- see the menu-spin
+# regression test below.
 # --------------------------------------------------------------------------- #
 def test_run_watch_loops_until_max_sessions(monkeypatch):
-    monkeypatch.setattr("pitwall.games.acc.shm.mapping_exists", lambda _name: True)
     monkeypatch.setattr(
         "pitwall.ingest.cli.detect_source",
         lambda *, recording_path=None: SyntheticACCSource(seed=7, **TEST_KWARGS),
@@ -142,13 +164,15 @@ def test_run_watch_loops_until_max_sessions(monkeypatch):
     conn = db.connect(":memory:")
     db.apply_schema(conn)
 
-    n = cli.run_watch(conn, max_sessions=2, sleep=lambda _s: None, clock=lambda: 0.0, progress=None)
+    n = cli.run_watch(
+        conn, max_sessions=2, sleep=lambda _s: None, clock=lambda: 0.0, progress=None,
+        is_live=lambda: True,
+    )
     assert n == 2
     assert len(db.find_sessions(conn)) == 2
 
 
 def test_run_watch_survives_a_failed_session(monkeypatch):
-    monkeypatch.setattr("pitwall.games.acc.shm.mapping_exists", lambda _name: True)
     calls = {"n": 0}
 
     def flaky(*, recording_path=None):
@@ -163,7 +187,8 @@ def test_run_watch_survives_a_failed_session(monkeypatch):
     msgs: list[str] = []
 
     n = cli.run_watch(
-        conn, max_sessions=1, sleep=lambda _s: None, clock=lambda: 0.0, progress=msgs.append
+        conn, max_sessions=1, sleep=lambda _s: None, clock=lambda: 0.0, progress=msgs.append,
+        is_live=lambda: True,
     )
     assert n == 1  # recovered: the good session after the failed one still counted
     assert any("session ingest failed" in m for m in msgs)  # the failure was logged
@@ -171,7 +196,6 @@ def test_run_watch_survives_a_failed_session(monkeypatch):
 
 
 def test_run_watch_keyboardinterrupt_keeps_committed_laps(monkeypatch):
-    monkeypatch.setattr("pitwall.games.acc.shm.mapping_exists", lambda _name: True)
     calls = {"n": 0}
 
     def flaky(*, recording_path=None):
@@ -184,11 +208,73 @@ def test_run_watch_keyboardinterrupt_keeps_committed_laps(monkeypatch):
     conn = db.connect(":memory:")
     db.apply_schema(conn)
 
-    n = cli.run_watch(conn, max_sessions=5, sleep=lambda _s: None, clock=lambda: 0.0, progress=None)
+    n = cli.run_watch(
+        conn, max_sessions=5, sleep=lambda _s: None, clock=lambda: 0.0, progress=None,
+        is_live=lambda: True,
+    )
     assert n == 1  # interrupt broke the loop cleanly, no propagation
     sessions = db.find_sessions(conn)
     assert len(sessions) == 1
     assert len(db.laps_for_session(conn, sessions[0].session_id)) == 8  # session 1 fully preserved
+
+
+def test_run_watch_never_ingests_while_not_live(monkeypatch):
+    """Regression: ACC open but not on track (status != LIVE) must ingest nothing.
+
+    The original daemon gated on shared-memory page existence, which is true the
+    moment ACC launches -- so parking in the menu spun out thousands of 0-lap
+    session rows. With status-gating, ``detect_source`` is never even reached while
+    not live. (We Ctrl-C out of the wait to end the otherwise-blocking loop, exactly
+    as a user would after giving up in the menu.)
+    """
+    detect_calls = {"n": 0}
+
+    def detect(*, recording_path=None):
+        detect_calls["n"] += 1
+        return SyntheticACCSource(seed=7, **TEST_KWARGS)
+
+    monkeypatch.setattr("pitwall.ingest.cli.detect_source", detect)
+    polls = {"n": 0}
+
+    def live() -> bool:
+        polls["n"] += 1
+        if polls["n"] >= 3:
+            raise KeyboardInterrupt  # user gives up waiting in the menu
+        return False  # never on track
+
+    conn = db.connect(":memory:")
+    db.apply_schema(conn)
+    n = cli.run_watch(
+        conn, max_sessions=5, sleep=lambda _s: None, clock=lambda: 0.0,
+        progress=None, is_live=live,
+    )
+    assert detect_calls["n"] == 0  # never tried to ingest while not on track
+    assert db.find_sessions(conn) == []
+    assert n == 0
+
+
+def test_run_watch_skips_no_lap_session(monkeypatch):
+    """A LIVE session that produces no complete lap writes no row and isn't counted.
+
+    Belt-and-suspenders to the status gate: even when on track, a driver who leaves
+    before finishing a lap (0 frames -> ``pipeline.run`` returns None) must not leave
+    an empty session behind. The next real session still ingests normally.
+    """
+    sources = iter([_NoLapSource(), SyntheticACCSource(seed=7, **TEST_KWARGS)])
+    monkeypatch.setattr(
+        "pitwall.ingest.cli.detect_source", lambda *, recording_path=None: next(sources)
+    )
+    conn = db.connect(":memory:")
+    db.apply_schema(conn)
+    msgs: list[str] = []
+
+    n = cli.run_watch(
+        conn, max_sessions=1, sleep=lambda _s: None, clock=lambda: 0.0,
+        progress=msgs.append, is_live=lambda: True,
+    )
+    assert n == 1  # the no-lap session was not counted; only the real one was
+    assert len(db.find_sessions(conn)) == 1  # and no empty row was persisted
+    assert any("no complete lap" in m for m in msgs)
 
 
 # --------------------------------------------------------------------------- #

@@ -174,34 +174,45 @@ def run(
     target_hz: float = 50.0,
     min_points: int = 20,
     on_lap: Callable[[int, int | None], None] | None = None,
-) -> int:
-    """Ingest a whole session from ``source`` into ``conn``. Returns the session id.
+) -> int | None:
+    """Ingest a whole session from ``source`` into ``conn``. Returns the session id,
+    or ``None`` if the source produced no complete lap (nothing was written).
+
+    The session row is created **lazily, on the first lap**, not up front: a source
+    that yields no laps -- ACC sitting in the menu/garage, where the shared-memory
+    pages exist but ``status`` is not LIVE, so the live stream ends with zero frames
+    -- must not leave an empty session behind. (Doing so up front is what let the
+    ``--watch`` daemon spam thousands of 0-lap rows while parked in the menu.)
+    Streaming is preserved: the row still appears the moment the first lap commits,
+    so the MCP server sees laps as they're driven.
 
     ``on_lap`` (optional) is invoked once per committed lap with
     ``(lap_number, lap_time_ms)`` -- purely a progress hook for callers like the
     ``pitwall-ingest`` CLI. It defaults to None and changes nothing about ingestion.
     """
     info: StaticInfo = source.static_info()
-    session_id = db.insert_session(
-        conn,
-        game=info.game,
-        track_code=info.track_code,
-        track_name=track_name(info.track_code),
-        car_code=info.car_code,
-        car_name=car_name(info.car_code),
-        started_at_utc=info.started_at_utc,
-        session_type=info.session_type,
-        sector_count=info.sector_count,
-        track_length_m=info.track_length_m,
-        air_temp_c=info.air_temp_c,
-        road_temp_c=info.road_temp_c,
-    )
+    session_id: int | None = None
 
     stint_number = 1
     prev_tyre: int | None = None
     for buf in segment(downsample(source.frames(), target_hz)):
         if len(buf.frames) < min_points:
             continue  # discard the trailing one-frame buffer after the final line crossing
+        if session_id is None:
+            session_id = db.insert_session(
+                conn,
+                game=info.game,
+                track_code=info.track_code,
+                track_name=track_name(info.track_code),
+                car_code=info.car_code,
+                car_name=car_name(info.car_code),
+                started_at_utc=info.started_at_utc,
+                session_type=info.session_type,
+                sector_count=info.sector_count,
+                track_length_m=info.track_length_m,
+                air_temp_c=info.air_temp_c,
+                road_temp_c=info.road_temp_c,
+            )
         tyre_set = buf.frames[0].tyre_set
         if prev_tyre is not None and tyre_set != prev_tyre:
             stint_number += 1

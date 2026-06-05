@@ -99,6 +99,8 @@ def test_missing_page_raises_game_not_running():
 
 def test_capture_raises_when_game_not_running(tmp_path):
     # No injected provider -> opens real LivePages, which fails fast off-game.
+    if shm.mapping_exists(shm.PHYSICS):
+        pytest.skip("ACC is running on this machine; cannot exercise the not-running path")
     with pytest.raises(shm.GameNotRunningError):
         capture_session(tmp_path / "x.pwcap", duration_s=0.1, progress=None)
 

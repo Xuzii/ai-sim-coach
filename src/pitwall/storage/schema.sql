@@ -58,3 +58,22 @@ CREATE TABLE IF NOT EXISTS sectors (
     UNIQUE(lap_id, sector_index)
 );
 CREATE INDEX IF NOT EXISTS idx_sectors_lap ON sectors(lap_id);
+
+-- Phase 2: structured coaching reports for a lap (the single-agent coach output,
+-- and the Phase 3 specialist hand-off contract). The full report -- findings,
+-- consistency, priorities, narrative -- is stored as JSON in report_json; the
+-- columns alongside it are denormalised for cheap listing/filtering and indexing.
+CREATE TABLE IF NOT EXISTS coaching_reports (
+    report_id         INTEGER PRIMARY KEY,
+    lap_id            INTEGER NOT NULL REFERENCES laps(lap_id) ON DELETE CASCADE,
+    session_id        INTEGER REFERENCES sessions(session_id) ON DELETE CASCADE,
+    reference_lap_id  INTEGER,                   -- lap compared against (may be NULL)
+    provider          TEXT,                      -- LLM provider, e.g. 'gemini'
+    model             TEXT,                      -- model id, e.g. 'gemini-2.5-flash'
+    schema_version    INTEGER NOT NULL,          -- CoachingReport schema version
+    generated_at_utc  TEXT    NOT NULL,          -- ISO-8601 UTC
+    consistency_score INTEGER,                   -- 0-100 grounded score (NULL if not computable)
+    report_json       TEXT    NOT NULL           -- the full serialised CoachingReport
+);
+CREATE INDEX IF NOT EXISTS idx_coaching_reports_lap ON coaching_reports(lap_id);
+CREATE INDEX IF NOT EXISTS idx_coaching_reports_session ON coaching_reports(session_id, generated_at_utc);

@@ -16,7 +16,7 @@ from pathlib import Path
 from pitwall import timeutil
 from pitwall.storage import paths
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # v2 adds the coaching_reports table (Phase 2); changes are purely additive
 _SCHEMA_SQL = files("pitwall.storage").joinpath("schema.sql").read_text(encoding="utf-8")
 
 
@@ -110,14 +110,22 @@ def connect(db_file: str | Path | None = None) -> sqlite3.Connection:
 
 
 def apply_schema(conn: sqlite3.Connection) -> None:
-    """Create tables/indices if absent and stamp the schema version. Idempotent."""
+    """Create tables/indices if absent and stamp the current schema version.
+
+    Idempotent, and safe to re-run on an older on-disk store: schema changes are
+    purely additive (``CREATE TABLE IF NOT EXISTS``), so we just upsert the single
+    ``schema_meta`` row to the latest :data:`SCHEMA_VERSION` without needing a
+    migration step."""
     conn.executescript(_SCHEMA_SQL)
-    already = conn.execute("SELECT 1 FROM schema_meta LIMIT 1").fetchone()
-    if not already:
+    row = conn.execute("SELECT version FROM schema_meta LIMIT 1").fetchone()
+    now = timeutil.to_iso_utc(timeutil.utc_now())
+    if row is None:
         conn.execute(
             "INSERT INTO schema_meta (version, applied_at_utc) VALUES (?, ?)",
-            (SCHEMA_VERSION, timeutil.to_iso_utc(timeutil.utc_now())),
+            (SCHEMA_VERSION, now),
         )
+    elif row[0] != SCHEMA_VERSION:
+        conn.execute("UPDATE schema_meta SET version = ?, applied_at_utc = ?", (SCHEMA_VERSION, now))
     conn.commit()
 
 

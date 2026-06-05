@@ -24,6 +24,35 @@ def ingested(data_dir):
     return conn, session_id
 
 
+def test_run_with_no_laps_writes_no_session(data_dir):
+    """A source that yields no complete lap must leave no session row behind.
+
+    The row is created lazily on the first lap, so an empty source (ACC parked in
+    the menu, where the live stream ends with zero frames) returns None and writes
+    nothing -- otherwise ``--watch`` spams empty 0-lap sessions.
+    """
+    from collections.abc import Iterator
+
+    from pitwall.ingest.frames import CanonicalFrame, StaticInfo
+    from pitwall.ingest.source import TelemetrySource
+
+    class _Empty(TelemetrySource):
+        native_hz = 150.0
+
+        def static_info(self) -> StaticInfo:
+            return StaticInfo(game="acc", track_code="spa", car_code="mclaren_720s_gt3",
+                              started_at_utc="2026-05-27T00:00:00Z")
+
+        def frames(self) -> Iterator[CanonicalFrame]:
+            return iter(())
+
+    conn = db.connect(":memory:")
+    db.apply_schema(conn)
+    sid = pipeline.run(_Empty(), conn)
+    assert sid is None
+    assert db.find_sessions(conn) == []
+
+
 def test_session_and_lap_count(ingested):
     conn, sid = ingested
     sess = db.get_session(conn, sid)

@@ -39,6 +39,9 @@ dependencies = [
 dev = ["pytest>=8", "ruff>=0.6", "build", "twine", "pandas"]
 # Benchmark-only extras (bench/run.py): real token counts + process memory.
 bench = ["tiktoken", "psutil"]
+# Phase 2 coach: the Gemini provider behind the LLMClient seam. Kept optional so the
+# base MCP install stays lean; the LLM is mockable, so tests need none of this.
+coach = ["google-genai>=1.0"]
 
 [project.scripts]
 pitwall = "pitwall.server:main"
