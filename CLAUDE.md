@@ -4,15 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 1 SHIPPED (2026-05-25).** Next up: **Phase 2 — the single-agent coach.** v0.1
-scope is **ACC-only**; package name is **`pitwall`** (PyPI dist `pitwall-mcp`, import
+**Phase 1 SHIPPED (2026-05-25). Phase 2 IN PROGRESS — chunks P2-C0 + P2-C1 DONE (C1 2026-06-04).**
+Phase 2 is the **single-agent coach**; the full chunked, multi-session plan lives at
+`~/.claude/plans/i-want-you-to-virtual-papert.md`. Locked: engine = a hand-rolled agentic
+tool-use loop on **Gemini** (free tier) behind a provider-agnostic `LLMClient` seam (a Claude
+backend drops in later); a new **`pitwall-coach`** CLI (the analysis is *not* an MCP tool); a
+structured `CoachingReport` persisted to SQLite, which is the **Phase 3 hand-off contract**.
+**P2-C0 (contract + skeleton) shipped:** new `src/pitwall/coach/` package (report, consistency,
+store, llm/base + MockLLMClient, tools registry) + a single shared tool source
+`src/pitwall/tools/specs.py` that **both** the MCP server and the coach build from (server now
+registers its 8 tools programmatically from it — byte-identical schemas, no drift); a new
+`coaching_reports` SQLite table (schema bumped to v2). No LLM cost, fully mock-tested.
+**P2-C1 (Gemini client + agent loop) shipped:** `coach/agent.py` (`analyze_lap` — the tool-use
+loop that drives the `LLMClient` through the query tools and terminates on the model's
+`submit_coaching_report` call, then validates + persists the report), `coach/llm/gemini.py`
+(`GeminiClient` — lazy-imported `google-genai`, raw-JSON-schema tool path + a key sanitiser),
+`coach/config.py` (`CoachConfig` + a zero-dep `.env` loader / `resolve_api_key`), and a tracked
+`.env.example`. Tests mock the LLM (live Gemini test is env-gated, skipped in CI).
+**Next action: build chunk P2-C2** (the `pitwall-coach` CLI + entry point + milestone check-in).
+v0.1 scope is **ACC-only**; package name is **`pitwall`** (PyPI dist `pitwall-mcp`, import
 `pitwall`, console script `pitwall`).
 
 ### Current state — READ THIS FIRST
 
 **Canonical, always-current status lives in [`STATUS.md`](STATUS.md).** Read it before
-acting on anything in this section. Summary as of **2026-05-25** (re-verified: ruff
-clean, **100/100 tests**, wheel+sdist build, `twine check` passes, end-to-end ingest of
+acting on anything in this section. Summary as of **2026-06-04** (re-verified: ruff
+clean, **159 passed / 1 skipped**, wheel+sdist build, `twine check` passes, end-to-end ingest of
 the real 286 MB capture works):
 
 - ✅ **M1 (Foundation)** and ✅ **M2 (ACC reader)** are complete and verified; M2's

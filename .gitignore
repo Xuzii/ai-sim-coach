@@ -29,6 +29,12 @@ pitwall.db
 # Local-only Claude Code permissions (per-developer)
 .claude/settings.local.json
 
+# Local secrets -- API keys, etc. Read by pitwall.coach.config.load_dotenv()
+# at the project root. NEVER commit this file.
+.env
+.env.*
+!.env.example
+
 # Personal planning / career-strategy docs -- kept local in planning/, not for
 # the public repo (they name target companies / career strategy). The whole
 # folder is ignored; drop a file elsewhere if you ever want to track it.

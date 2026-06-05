@@ -2,7 +2,7 @@
 
 > **Single source of truth for where this project stands.** Other docs are
 > point-in-time or detail references; this file is kept current. Last updated &
-> re-verified **2026-05-25**.
+> re-verified **2026-06-04**.
 
 ## TL;DR
 
@@ -16,7 +16,10 @@ round-trip is done and recorded** (demo embedded in the README), and the store i
 to answer the five success-criteria questions. **Deferred (not blocking Phase 2):** PyPI
 upload (shelved — name `pitwall-mcp` is reserved/available), cutting the GitHub *Release*
 object from the tag, and the community post (draft ready in local
-`planning/launch-materials.md`). **Next up: Phase 2 — the single-agent coach.**
+`planning/launch-materials.md`). **Phase 2 — the single-agent coach — is underway:
+chunks P2-C0 (contract + skeleton) and P2-C1 (Gemini client + agent loop) are DONE; see
+[Phase 2 — in progress](#phase-2--in-progress-2026-06-04). Next action: build chunk P2-C2
+(`pitwall-coach` CLI + milestone check-in).**
 
 ## Phase 1 at a glance
 
@@ -109,10 +112,83 @@ The deferred items (optional, **not** blocking Phase 2 — pick up anytime):
 - ⏸️ **Community post.** Draft ready in `planning/launch-materials.md` §2 (r/simracing /
   a sim-racing Discord).
 
-## Then: Phase 2
+## Phase 2 — in progress (2026-06-04)
 
 The single-agent coach — ingest a lap and return structured + human-readable feedback.
-See the roadmap (planning doc) for the full 6-phase arc.
+**Full chunked plan: `~/.claude/plans/i-want-you-to-virtual-papert.md`** (roadmap context
+in the planning doc). It is explicitly **multi-session — not one-shot**. Locked decisions:
+
+- **Engine:** a hand-rolled agentic **tool-use loop** — the model calls pitwall's existing
+  `tools/queries.py` functions as tools; no raw-telemetry context dumps.
+- **Provider:** **Google Gemini** (free tier, for cost) behind a **provider-agnostic
+  `LLMClient`** seam, so a Claude backend drops in later with zero change to coaching logic.
+  The LLM is mockable, so tests need no network.
+- **Interface:** a new **`pitwall-coach` CLI** — *not* an MCP tool (Claude Desktop already
+  coaches via the 8 telemetry tools; optional later: read-only MCP tools for *stored*
+  reports).
+- **Contract:** a structured **`CoachingReport`** (findings with severity/evidence,
+  priorities, consistency score, human summary), emitted via a terminal
+  `submit_coaching_report` tool call and persisted to a new SQLite table for longitudinal
+  tracking. **This schema is the Phase 3 specialist-agent hand-off contract.**
+- **Eval data:** Kenneth will drive more real ACC laps; the eval framework consumes them.
+
+**Chunks:** **C0 ✅ contract + skeleton (DONE — no LLM, fully mock-tested)** →
+**C1 ✅ Gemini client + agent loop (DONE 2026-06-04)** → **C2** `pitwall-coach` CLI
+(+ milestone check-in) → **C3** eval framework → **C4** (optional) MCP report tools →
+**C5** portfolio + ship `v0.2.0`.
+**Next action: build P2-C2.** See the roadmap (planning doc) for the full 6-phase arc.
+
+**P2-C1 delivered (re-verified 2026-06-04: ruff clean, 159 passed / 1 skipped, build +
+`twine check` pass — coach tests make zero network calls):**
+- `src/pitwall/coach/agent.py` — `analyze_lap(conn, lap_id, llm, config)`: the hand-rolled
+  agentic tool-use loop. Bootstraps lap/session/reference context, drives the `LLMClient`
+  through the query tools + `get_consistency`, and terminates when the model calls the
+  `submit_coaching_report` tool (caught by name — it's not a `run_tool` dispatch target).
+  The captured args are validated via `CoachingReport.from_tool_args`, stamped with
+  provenance (provider/model/`generated_at_utc`), persisted, and returned as
+  `(report, report_id)`. Guards: stalls out on two consecutive text-only turns (one nudge
+  first) and on exceeding `config.max_iterations` (default 12); tool-result payloads are
+  truncated at 60k chars so a runaway trace can't blow the context window. The system
+  prompt encodes the cheap-first workflow (summary → sector delta → tight-range trace →
+  ground consistency) and the "evidence must cite a real tool result" rule.
+- `src/pitwall/coach/llm/gemini.py` — `GeminiClient(LLMClient)`: pure translation between
+  the neutral seam types and the `google-genai` SDK. `google.genai` is imported **lazily**
+  in the constructor so the base install never pays for it. Tool schemas go through
+  `parameters_json_schema` (the SDK's raw-JSON-schema escape hatch — lossless for the
+  `detail_level` enum) after a conservative `_clean_schema` strips keys Gemini rejects
+  (`$schema`, `additionalProperties`, …). `from_config` resolves the key via
+  `resolve_api_key`. Default model `gemini-2.5-flash`.
+- `src/pitwall/coach/config.py` — `CoachConfig` (provider/model/`api_key_env`/
+  `max_iterations`/`temperature`/`reference_lap_id`/`system_prompt`) + a ~15-line zero-dep
+  `.env` loader (`load_dotenv` never overrides a shell-set var) and `resolve_api_key`
+  (graceful `RuntimeError` pointing at `.env.example` when the key is missing).
+- `.env.example` (tracked template): `GEMINI_API_KEY=` + the `PITWALL_LIVE_GEMINI` opt-in
+  flag for the live smoke test. Tests added: `test_coach_agent.py` (11 — full loop over
+  `MockLLMClient`: happy path, stall/iteration guards, reference-lap bootstrap, truncation),
+  `test_coach_gemini.py` (8 — seam↔SDK translation, schema sanitiser, response parsing),
+  `test_coach_config.py` (7 — `.env` precedence + key resolution), and an **env-gated**
+  `test_coach_gemini_live.py` (1, skipped unless `PITWALL_LIVE_GEMINI` is set — keeps CI
+  offline). No `pitwall-coach` entry point yet — that's C2.
+
+**P2-C0 delivered (no LLM, fully mock-tested):**
+- New `src/pitwall/coach/` package: `report.py` (`CoachingReport`/`Finding` dataclasses,
+  `report_json_schema()` for the terminal `submit_coaching_report` tool, `from_tool_args()`
+  parse+validate, lossless `to_dict`/`from_dict`), `consistency.py` (deterministic 0–100
+  `consistency_score()` — lap-time + per-sector CoV, linear map capped at 10% CoV),
+  `store.py` (`coaching_reports` table — `insert_report`/`get_report`/`list_reports`),
+  `llm/base.py` (`LLMClient` ABC + neutral `Message`/`ToolSpec`/`ToolCall`/`LLMResponse` +
+  a scripted `MockLLMClient`), `tools.py` (agent tool registry + dispatcher; offers the 7
+  query tools **minus `export_lap_csv`** plus a `get_consistency` grounding tool).
+- **Single shared tool source `src/pitwall/tools/specs.py`** (the C0 "one definition" decision):
+  name + description + connection-in handler per tool. The MCP **server now registers its 8
+  tools programmatically from it** (synthesised `__signature__` so FastMCP derives
+  byte-identical schemas — verified against the pre-refactor server, incl. the `detail_level`
+  enum); the coach builds clean provider-neutral JSON schemas from the same source. They can
+  no longer drift.
+- Storage schema **bumped to v2** (additive `coaching_reports` table; `apply_schema` now
+  upserts the single `schema_meta` row). New optional dep extra `coach = ["google-genai>=1.0"]`
+  (no `pitwall-coach` entry point yet — that's C2). The LLM is mockable, so all coach tests run
+  offline with no API key.
 
 ## Where things live
 
