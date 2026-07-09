@@ -7,7 +7,30 @@ and exposes it to Claude Desktop as a small set of tools. Ask Claude things like
 *"What was my brake pressure into Turn 1 on my fastest lap?"* and it queries your
 real laps to answer.
 
-**Status:** v0.1 — **ACC only**. iRacing live + `.ibt` backfill land in v0.2.
+**Status:** v0.1 shipped — **ACC** (live + `.pwcap` replay) and **iRacing `.ibt`**
+replay, exposed to Claude through 8 MCP tools. Phase 2 (an **AI coach** that reads a
+lap and returns structured + human-readable feedback) is in progress: the
+`pitwall-coach` CLI and its agentic tool-use loop are built and tested offline — see
+[Roadmap](#roadmap). Live iRacing (`irsdk`) lands in v0.2.
+
+## Why this project
+
+A telemetry-to-LLM pipeline built end-to-end, with the engineering decisions a
+recruiter or eng manager can inspect as receipts:
+
+- **A canonical channel schema** ([`channels.py`](src/pitwall/channels.py)) that maps
+  two very different games (ACC Shared Memory, iRacing `.ibt`) onto one game-agnostic
+  vocabulary — so storage, queries, and the AI layer never learn game specifics.
+- **A deliberate storage split** — SQLite for metadata, columnar Parquet for per-lap
+  traces — chosen for the real access pattern (distance-range channel slices), not by
+  default.
+- **Token-budget discipline** — tool responses default to summary stats with a
+  `detail_level` knob, a **41×** context saving over raw traces (measured).
+- **A provider-agnostic agentic loop** — the Phase 2 coach drives an LLM through the
+  query tools and terminates on a structured report; the LLM backend is a swappable
+  seam (Gemini today, Claude drop-in later).
+- **Evidence, not claims** — 190 automated tests (no game required), published
+  [benchmarks](BENCHMARKS.md), and a real-session [demo](#pitwall).
 
 ![pitwall demo — asking Claude Desktop about a real ACC session](https://raw.githubusercontent.com/Xuzii/ai-sim-coach/main/docs/demo.gif)
 
@@ -53,8 +76,12 @@ ingest command while you drive:
 pitwall-ingest --watch      # start once; auto-ingests every session as you drive
 # or, one session at a time / from a saved recording:
 pitwall-ingest              # live, ends when the ACC session does
-pitwall-ingest session.pwcap   # ingest a previously captured .pwcap
+pitwall-ingest session.pwcap   # ingest a previously captured ACC .pwcap
+pitwall-ingest session.ibt     # ingest an iRacing .ibt export (needs the iracing extra)
 ```
+
+For iRacing `.ibt` files, install the optional extra first (it pulls in `pyirsdk` +
+`pyyaml`): `pip install "pitwall-mcp[iracing]"`.
 
 Launch ACC, drive some laps, and ask Claude about them.
 
@@ -121,7 +148,7 @@ reproduction steps in [BENCHMARKS.md](BENCHMARKS.md):
 python -m venv .venv && .venv\Scripts\activate   # Windows
 pip install -e ".[dev]"
 ruff check .
-pytest                                            # 100 tests, no game required
+pytest                                            # 190 tests, no game required
 python bench/run.py                               # reproduce the benchmarks
 ```
 
@@ -129,9 +156,25 @@ The ACC reader is regression-tested in CI without the game, by replaying a scrub
 slimmed capture (`tests/fixtures/acc-nurburgring-slim.pwcap`) through the real
 pipeline.
 
+## Roadmap
+
+The MCP server (Phase 1) is the foundation for an AI race engineer. The trajectory:
+
+| Phase | What | State |
+|---|---|---|
+| **1 — MCP telemetry server** | Ingest ACC/iRacing, expose 8 tools to Claude Desktop | ✅ Shipped (`v0.1.0`) |
+| **2 — Single-agent coach** | Agentic tool-use loop reads a lap → structured `CoachingReport` + human feedback (`pitwall-coach analyze`) | 🚧 In progress — CLI + loop built, tested offline; live tuning next |
+| **3 — Multi-agent** | Specialist agents (Braking / Throttle / Line / Tyre) + a Synthesis coach | Planned |
+| **4 — Vision** | Fuse onboard video with telemetry | Optional |
+| **5 — Evals** | Lap-time-delta + LLM-as-judge + consistency scoring | Planned |
+
+The Phase 2 `CoachingReport` is persisted to SQLite as the hand-off contract into the
+multi-agent architecture. The LLM sits behind a provider-agnostic `LLMClient` seam, so
+the coaching engine is not tied to any one model.
+
 ## License & acknowledgements
 
 MIT — see [LICENSE](LICENSE). The ACC Shared Memory page layout is publicly
 documented by Kunos Simulazioni; pitwall reimplements that documented struct layout
-in Python (it ships no Kunos code). iRacing support (v0.2) will build on the MIT
-`pyirsdk` project.
+in Python (it ships no Kunos code). iRacing `.ibt` ingest uses the MIT `pyirsdk`
+project (the optional `iracing` extra); live iRacing (`irsdk`) lands in v0.2.
