@@ -11,7 +11,7 @@ tested (ruff clean, 100 tests, build + `twine check` pass), it's verified agains
 286 MB ACC session and a live drive-test, and the **`pitwall-ingest` command** populates
 the store the server reads — live as you drive (`--watch` across sessions) or from a
 `.pwcap` (see [Ingest command](#ingest-command-shipped)). The code is **public on GitHub**
-(`main` + tag `v0.1.0` at https://github.com/Xuzii/ai-sim-coach), the **Claude Desktop
+(`main` + tag `v0.1.0` at https://github.com/kruslim/ai-sim-coach), the **Claude Desktop
 round-trip is done and recorded** (demo embedded in the README), and the store is verified
 to answer the five success-criteria questions. **Deferred (not blocking Phase 2):** PyPI
 upload (shelved — name `pitwall-mcp` is reserved/available), cutting the GitHub *Release*
@@ -145,7 +145,7 @@ Phase 1 is shipped. The done items:
    **local** — moved into `planning/`, gitignored as a whole, so they never reach the
    public repo.
 1. ✅ **Pushed to GitHub (2026-05-25).** `main` + tag `v0.1.0` are live at
-   `https://github.com/Xuzii/ai-sim-coach`. Pre-push audit was clean (no secrets,
+   `https://github.com/kruslim/ai-sim-coach`. Pre-push audit was clean (no secrets,
    captures, or planning docs).
 2. ✅ **Claude Desktop round-trip done + recorded (2026-05-25).** The five
    success-criteria questions were asked in Claude Desktop against the real store

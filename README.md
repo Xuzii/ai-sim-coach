@@ -32,7 +32,7 @@ recruiter or eng manager can inspect as receipts:
 - **Evidence, not claims** — 190 automated tests (no game required), published
   [benchmarks](BENCHMARKS.md), and a real-session [demo](#pitwall).
 
-![pitwall demo — asking Claude Desktop about a real ACC session](https://raw.githubusercontent.com/Xuzii/ai-sim-coach/main/docs/demo.gif)
+![pitwall demo — asking Claude Desktop about a real ACC session](https://raw.githubusercontent.com/kruslim/ai-sim-coach/main/docs/demo.gif)
 
 > 🏁 Claude Desktop answering the five questions below over the `pitwall` MCP server, against a real Nürburgring / Ford Mustang GT3 session.
 

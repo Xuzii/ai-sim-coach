@@ -51,7 +51,7 @@ the real 286 MB capture works):
   reader). Benchmarks: `BENCHMARKS.md`. Both real-data findings (sector-telescoping +
   `trackSPlineLength==0`) are FIXED.
 - ✅ **Phase 1 shipped:** code is public on GitHub (`main` + tag `v0.1.0` at
-  https://github.com/Xuzii/ai-sim-coach), the Claude Desktop round-trip was done and
+  https://github.com/kruslim/ai-sim-coach), the Claude Desktop round-trip was done and
   recorded (demo at `docs/demo.gif`, embedded in the README). **Deferred / optional**
   (not blocking Phase 2): PyPI upload (shelved; `pitwall-mcp` name reserved), cutting the
   GitHub *Release* object from the tag, and one community post — drafts live in
