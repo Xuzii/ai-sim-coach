@@ -305,3 +305,17 @@ def personal_best_ms(conn: sqlite3.Connection, track_code: str, car_code: str) -
         (track_code, car_code),
     ).fetchone()
     return int(row[0]) if row and row[0] is not None else None
+
+
+def personal_best_lap(conn: sqlite3.Connection, track_code: str, car_code: str) -> Lap | None:
+    """The actual fastest valid lap for a track+car across all sessions (the lap
+    behind :func:`personal_best_ms`). Returns the :class:`Lap` so callers that need
+    its ``lap_id`` -- e.g. the coach's ``--pb`` reference -- get it directly.
+    Returns None if there is no timed valid lap for that track+car."""
+    row = conn.execute(
+        "SELECT l.* FROM laps l JOIN sessions s ON l.session_id = s.session_id "
+        "WHERE s.track_code = ? AND s.car_code = ? AND l.is_valid = 1 AND l.lap_time_ms IS NOT NULL "
+        "ORDER BY l.lap_time_ms ASC LIMIT 1",
+        (track_code, car_code),
+    ).fetchone()
+    return Lap.from_row(row) if row else None

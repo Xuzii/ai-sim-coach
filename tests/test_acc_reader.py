@@ -193,9 +193,15 @@ def test_accsource_static_info_from_fixture():
 # --------------------------------------------------------------------------- #
 # detect_source
 # --------------------------------------------------------------------------- #
-def test_detect_source_iracing_is_v02_stub():
-    with pytest.raises(NotImplementedError, match="v0.2"):
+def test_detect_source_iracing_live_is_not_yet_supported():
+    # iRacing now supports .ibt replay; only *live* iRacing remains a follow-up.
+    with pytest.raises(NotImplementedError, match="live iRacing"):
         detect_source(game="iracing")
+
+
+def test_detect_source_unknown_game_raises():
+    with pytest.raises(NotImplementedError, match="unsupported game"):
+        detect_source(recording_path="x.bin", game="rfactor")
 
 
 def test_detect_source_live_raises_when_game_not_running():

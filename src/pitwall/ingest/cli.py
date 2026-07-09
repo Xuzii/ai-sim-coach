@@ -84,10 +84,11 @@ def ingest_once(
     """Resolve a source and ingest one whole session into ``conn``; return its id,
     or ``None`` if the session produced no complete lap (nothing was written).
 
-    Live when ``recording_path`` is None, else replay. Each lap is printed as it
+    Live when ``recording_path`` is None, else replay. A ``.ibt`` recording is
+    routed to the iRacing reader; everything else is ACC. Each lap is printed as it
     commits (via ``pipeline.run``'s ``on_lap`` hook) so a live session isn't a
-    silent block. Lets ``GameNotRunningError`` / ``FileNotFoundError`` /
-    ``ValueError`` propagate -- :func:`main` maps them to exit codes.
+    silent block. Lets ``GameNotRunningError`` / ``IRacingSDKMissingError`` /
+    ``FileNotFoundError`` / ``ValueError`` propagate -- :func:`main` maps them to exit codes.
     """
 
     def on_lap(lap_number: int, lap_time_ms: int | None) -> None:
@@ -96,7 +97,10 @@ def ingest_once(
         t = f"{lap_time_ms / 1000.0:.3f}s" if lap_time_ms else "--"
         progress(f"  lap {lap_number} ingested  ({t})")
 
-    source = detect_source(recording_path=recording_path)
+    if recording_path is not None and str(recording_path).lower().endswith(".ibt"):
+        source = detect_source(recording_path=recording_path, game="iracing")
+    else:
+        source = detect_source(recording_path=recording_path)
     return pipeline.run(source, conn, target_hz=target_hz, min_points=min_points, on_lap=on_lap)
 
 
@@ -213,13 +217,14 @@ def main(argv: list[str] | None = None) -> int:
     """Console entry point for ``pitwall-ingest`` / ``python -m pitwall.ingest.cli``."""
     parser = argparse.ArgumentParser(
         prog="pitwall-ingest",
-        description="Ingest ACC telemetry (live, or a .pwcap recording) into the local store.",
+        description="Ingest sim telemetry into the local store: live ACC, an ACC .pwcap "
+        "recording, or an iRacing .ibt export.",
     )
     parser.add_argument(
         "recording",
         nargs="?",
         default=None,
-        help="a .pwcap recording to ingest; omit for live ACC ingest",
+        help="an ACC .pwcap or iRacing .ibt file to ingest; omit for live ACC ingest",
     )
     parser.add_argument(
         "--watch",
@@ -240,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Deferred so this module imports on any platform (replay needs no ACC).
     from pitwall.games.acc.shm import GameNotRunningError
+    from pitwall.games.iracing.ibt import IRacingSDKMissingError
 
     if args.watch and args.recording is not None:
         print("error: --watch only applies to live ingest, not a recording.", file=sys.stderr)
@@ -274,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         print(_summarize(conn, session_id))
         return 0
-    except GameNotRunningError as exc:
+    except (GameNotRunningError, IRacingSDKMissingError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     except (FileNotFoundError, ValueError) as exc:

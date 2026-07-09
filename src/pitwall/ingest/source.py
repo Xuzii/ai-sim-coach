@@ -36,17 +36,26 @@ def detect_source(
 ) -> TelemetrySource:
     """Return the telemetry source to ingest from.
 
-    With ``recording_path`` set, replays a captured ``.pwcap`` offline. Otherwise
-    opens live ACC, raising :class:`~pitwall.games.acc.shm.GameNotRunningError`
-    when the game isn't running. iRacing live ingest is a documented v0.2 stub.
+    With ``recording_path`` set, replays a captured ACC ``.pwcap`` or an iRacing
+    ``.ibt`` offline. Otherwise opens live ACC, raising
+    :class:`~pitwall.games.acc.shm.GameNotRunningError` when the game isn't running.
+    iRacing supports ``.ibt`` replay (``game="iracing"``); live iRacing is a follow-up.
 
-    ACC imports are deferred inside this function so the module stays importable
-    on non-Windows boxes and the synthetic-only pipeline never pulls in ctypes.
+    Game imports are deferred inside this function so the module stays importable
+    on non-Windows boxes and the synthetic-only pipeline never pulls in ctypes or
+    the optional ``iracing`` extra.
     """
+    if game == "iracing":
+        if recording_path is None:
+            raise NotImplementedError(
+                "live iRacing ingest is a follow-up; pass a .ibt file to replay."
+            )
+        from pitwall.games.iracing.reader import IRacingSource
+
+        return IRacingSource.from_ibt_file(recording_path, started_at_utc=started_at_utc)
+
     if game != "acc":
-        raise NotImplementedError(
-            f"live ingest for {game!r} lands in v0.2; only ACC is supported in v0.1."
-        )
+        raise NotImplementedError(f"unsupported game {game!r}; expected 'acc' or 'iracing'.")
 
     from pitwall.games.acc.reader import ACCSource, LiveFrameStream, RecordingFrameStream
     from pitwall.games.acc.recording import read_recording

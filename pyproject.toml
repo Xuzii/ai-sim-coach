@@ -42,11 +42,16 @@ bench = ["tiktoken", "psutil"]
 # Phase 2 coach: the Gemini provider behind the LLMClient seam. Kept optional so the
 # base MCP install stays lean; the LLM is mockable, so tests need none of this.
 coach = ["google-genai>=1.0"]
+# iRacing .ibt ingest: pyirsdk parses the binary telemetry, pyyaml the embedded
+# session-info. Optional -- the decode layer is lazy-imported and tests use a fake IBT,
+# so the base install and CI need neither. (Same libs the racing-telemetry-visualiser uses.)
+iracing = ["pyirsdk>=1.3.5", "pyyaml>=6"]
 
 [project.scripts]
 pitwall = "pitwall.server:main"
 pitwall-capture = "pitwall.games.acc.capture:main"
 pitwall-ingest = "pitwall.ingest.cli:main"
+pitwall-coach = "pitwall.coach.cli:main"
 pitwall-inspect = "pitwall.games.acc.inspect:main"
 pitwall-scrub = "pitwall.games.acc.scrub:main"
 

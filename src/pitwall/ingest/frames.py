@@ -25,6 +25,10 @@ class StaticInfo:
     session_type: str | None = None
     air_temp_c: float | None = None
     road_temp_c: float | None = None
+    # Explicit display names when the game supplies them directly (iRacing's YAML);
+    # left None for ACC, whose names are derived from the internal code via naming.py.
+    track_name: str | None = None
+    car_name: str | None = None
 
 
 @dataclass

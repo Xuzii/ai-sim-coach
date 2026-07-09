@@ -2,7 +2,7 @@
 
 > **Single source of truth for where this project stands.** Other docs are
 > point-in-time or detail references; this file is kept current. Last updated &
-> re-verified **2026-06-04**.
+> re-verified **2026-06-04** (P2-C2 + iRacing `.ibt` ingest).
 
 ## TL;DR
 
@@ -17,9 +17,15 @@ to answer the five success-criteria questions. **Deferred (not blocking Phase 2)
 upload (shelved — name `pitwall-mcp` is reserved/available), cutting the GitHub *Release*
 object from the tag, and the community post (draft ready in local
 `planning/launch-materials.md`). **Phase 2 — the single-agent coach — is underway:
-chunks P2-C0 (contract + skeleton) and P2-C1 (Gemini client + agent loop) are DONE; see
-[Phase 2 — in progress](#phase-2--in-progress-2026-06-04). Next action: build chunk P2-C2
-(`pitwall-coach` CLI + milestone check-in).**
+chunks P2-C0 (contract + skeleton), P2-C1 (Gemini client + agent loop), and P2-C2
+(`pitwall-coach` CLI) are DONE; see [Phase 2 — in progress](#phase-2--in-progress-2026-06-04).
+**Milestone B is now feature-complete — the only thing left in it is the live check-in
+(one `GEMINI_API_KEY` run on a real lap). Next chunk: P2-C3 (eval framework).**
+
+**Also new (2026-06-04): iRacing `.ibt` ingest** — `pitwall-ingest file.ibt` now ingests
+iRacing telemetry alongside ACC, verified end-to-end on a real 90 MB capture. See
+[iRacing `.ibt` ingest](#iracing-ibt-ingest-added-2026-06-04). This makes the canonical
+pipeline genuinely cross-game; the coach/MCP layers work over iRacing laps unchanged.
 
 ## Phase 1 at a glance
 
@@ -41,8 +47,8 @@ These were run against the current tree, not just claimed:
   1.56 MiB) through the real pipeline; `pitwall-ingest`'s replay/live/`--watch` paths are
   covered offline too.
 - **`python -m build`** → wheel + sdist in `dist/` (`pitwall_mcp-0.1.0`); `twine check`
-  passes. Wheel ships only `src/pitwall` + the 5 console scripts (`pitwall`,
-  `pitwall-capture`, `pitwall-ingest`, `pitwall-inspect`, `pitwall-scrub`).
+  passes. Wheel ships only `src/pitwall` + the 6 console scripts (`pitwall`,
+  `pitwall-capture`, `pitwall-ingest`, `pitwall-coach`, `pitwall-inspect`, `pitwall-scrub`).
 - **End-to-end on the real 286 MB capture** (`acc-spa.pwcap`, Nürburgring GP / Ford
   Mustang GT3): `bench/verify_success_criteria.py` ingests it and answers the 5
   plan queries — fastest valid lap **2:04.126**, first-braking-zone brake/speed
@@ -64,13 +70,15 @@ over the tested ingest spine (`pipeline.run(detect_source(...), conn)` — live 
 |---|---|---|
 | `pitwall` | The MCP server Claude Desktop launches | ❌ reads only |
 | `pitwall-capture` | Records raw shared-memory bytes → `.pwcap` | ❌ writes a `.pwcap`, not the store |
-| **`pitwall-ingest`** | **Ingests live ACC or a `.pwcap` into the store** | ✅ **writes the store** |
+| **`pitwall-ingest`** | **Ingests live ACC, an ACC `.pwcap`, or an iRacing `.ibt` into the store** | ✅ **writes the store** |
 | `pitwall-inspect` | Prints a decode of a `.pwcap` | ❌ |
 | `pitwall-scrub` | Strips player name from a `.pwcap` | ❌ |
 
-Three modes:
+Four modes (the file argument is routed by extension — `.pwcap` → ACC, `.ibt` → iRacing):
 - `pitwall-ingest` (live) — capture ACC into the store as you drive, ending at session end.
-- `pitwall-ingest path/to/session.pwcap` — ingest a previously captured recording.
+- `pitwall-ingest path/to/session.pwcap` — ingest a previously captured ACC recording.
+- `pitwall-ingest path/to/session.ibt` — ingest an iRacing `.ibt` export (needs the
+  `iracing` extra; see [iRacing `.ibt` ingest](#iracing-ibt-ingest-added-2026-06-04)).
 - `pitwall-ingest --watch` — daemon: after a session ends, wait for the next and
   auto-ingest it. Start it once and just drive. It's hardened to survive a bad session
   (logs the error and keeps watching) and logs to `%LOCALAPPDATA%\pitwall\ingest.log`
@@ -80,6 +88,53 @@ Three modes:
 It prints each lap as it lands and a summary line at the end. The store now runs in **WAL**
 mode so the MCP server can read it while `pitwall-ingest` writes (read-while-driving)
 without "database is locked"; expect `pitwall.db-wal`/`-shm` sidecars next to `pitwall.db`.
+
+## iRacing `.ibt` ingest (added 2026-06-04)
+
+pitwall is no longer ACC-only: it ingests iRacing **`.ibt`** telemetry exports through the
+same canonical pipeline, so everything downstream (store, MCP tools, the Phase 2 coach)
+works over iRacing laps **unchanged**. The design goal was **maximum fidelity to the
+sibling racing-telemetry-visualiser project** so the two reconcile trivially when pitwall is
+eventually folded into it.
+
+**Verified end-to-end (2026-06-04):** ruff clean, **190 passed / 2 skipped**, and a real
+90 MB capture (`mx5 mx52016_rudskogen … .ibt`, Mazda MX-5 Cup @ Rudskogen) ingests to **14
+laps** (~97–101 s) with sane canonical values — `lap_distance_m` monotonic 0→3150 m,
+throttle/brake 0–1, speed 67–183 km/h, pressures ~35 psi, `g_lon` −1.5 g under braking.
+
+**Structure — two layers** (`src/pitwall/games/iracing/`):
+1. **Ported decode layer** (near-verbatim copies of the visualiser's `rtv` modules, so they
+   diff to ~nothing): `ibt_types.py` (the 6 iRacing wire types + struct chars),
+   `ibt.py` (`read_ibt_session_info` YAML, `_window_columns` mmap unpack, `iter_samples`),
+   `normalize.py` (`LapTracker` — laps from `Lap`/`LapDistPct`/`OnPitRoad`).
+2. **Canonical adapter** (pitwall-specific): `mapping.py` (iRacing vars → canonical channels)
+   + `reader.py` (`IRacingSource`, a `TelemetrySource`). We deliberately do **not** port the
+   visualiser's `Catalog`/`FrameBuffer`/storage — pitwall has its own canonical schema +
+   Parquet writer; the adapter is the seam.
+
+**Wiring:** `detect_source(game="iracing", recording_path=…)` and `pitwall-ingest *.ibt`
+(extension-routed); `StaticInfo` gained optional `track_name`/`car_name` passthrough (iRacing
+supplies display names + track length + sector layout directly in the session-info YAML — no
+lookup tables, unlike ACC); new **optional `iracing` extra** (`pyirsdk>=1.3.5` + `pyyaml>=6`,
+lazy-imported — the same libs the visualiser uses), so the base MCP install stays lean and CI
+needs neither (tests use a byte-accurate `FakeIBT` that exercises the real struct decode).
+
+**Canonical mapping highlights** (full table in [`docs/channel-mapping.md`](docs/channel-mapping.md)):
+`Speed` m/s ×3.6 → km/h; `Clutch` **inverted** (`1 − Clutch`); `LatAccel`/`LongAccel` ÷ g;
+`*pressure` kPa → psi; `Gear` already canonical (no ACC −1 offset); `sector_index` **computed**
+from `LapDistPct` vs `SplitTimeInfo.Sectors[].SectorStartPct` (iRacing has no per-frame sector
+channel).
+
+**Coding gotcha (verified on real data):** iRacing `g_lat` = `LatAccel ÷ 9.80665` with **NO
+negation** — positive = right already, matching the steering sign. This is the **opposite**
+of ACC, which negates `accG[0]`. Confirmed on a real left-hander (steering −2.1 rad → g_lat
+−1.52 g).
+
+**Scope / documented limitations (v1):** `.ibt` replay only (live `irsdk` polling is a
+follow-up); `world_x/y/z` left None (iRacing exposes only GPS Lat/Lon/Alt — no cartesian
+frame; the coach doesn't use it); `lap_valid` always True and `tyre_set` always 0 (no
+per-frame flags in `.ibt`); tyre temps use build-dependent candidate names (the MX-5 Cup's
+`tempCM` carcass channel reads a constant — pressures are live and correct).
 
 ## Ship log — what's done and what's deferred
 
@@ -133,10 +188,36 @@ in the planning doc). It is explicitly **multi-session — not one-shot**. Locke
 - **Eval data:** Kenneth will drive more real ACC laps; the eval framework consumes them.
 
 **Chunks:** **C0 ✅ contract + skeleton (DONE — no LLM, fully mock-tested)** →
-**C1 ✅ Gemini client + agent loop (DONE 2026-06-04)** → **C2** `pitwall-coach` CLI
-(+ milestone check-in) → **C3** eval framework → **C4** (optional) MCP report tools →
+**C1 ✅ Gemini client + agent loop (DONE 2026-06-04)** → **C2 ✅ `pitwall-coach` CLI
+(DONE 2026-06-04)** → **C3** eval framework → **C4** (optional) MCP report tools →
 **C5** portfolio + ship `v0.2.0`.
-**Next action: build P2-C2.** See the roadmap (planning doc) for the full 6-phase arc.
+**Next action: the Milestone B live check-in** (a real `GEMINI_API_KEY` run on an
+ingested lap — review report quality + token/latency, tune the prompt), then build
+**P2-C3**. See the roadmap (planning doc) for the full 6-phase arc.
+
+**P2-C2 delivered (re-verified 2026-06-04: ruff clean, 172 passed / 1 skipped, build +
+`twine check` pass — all CLI tests use a mock LLM, zero network):**
+- `src/pitwall/coach/cli.py` — the **`pitwall-coach`** console command, three subcommands:
+  `analyze <lap_id> [--reference ID | --pb] [--model M] [--max-iterations N] [--json]`
+  (the only one that calls the LLM — runs `agent.analyze_lap`, persists the report, prints
+  a human-readable block or `--json`), `show <report_id> [--json]` (re-print a saved
+  report, pure read), and `list [--session ID | --lap ID] [--limit N]` (saved reports,
+  newest first). A `format_report()` pretty-printer renders findings with
+  area/severity/sector/distance/evidence/recommendation, stars the `priorities`, and shows
+  the consistency score + markdown summary. The structured report goes to **stdout**; the
+  `Saved report #N` provenance line goes to **stderr** so `--json` stdout stays clean and
+  pipeable. The LLM client is built through an **injectable `llm_factory`** (default
+  `GeminiClient.from_config`) so the whole CLI is testable offline. Every failure mode is a
+  clear message + non-zero exit: unknown lap/report → 2, unresolved `--reference`/`--pb` →
+  2, missing `GEMINI_API_KEY` → 2 (points at `.env.example`), `coach` extra not installed →
+  2 (install hint), agent stalled / no valid report → 1.
+- `src/pitwall/storage/db.py` — added `personal_best_lap(conn, track_code, car_code)`
+  (the `Lap` behind `personal_best_ms`) so `--pb` can resolve a reference `lap_id`.
+- `pyproject.toml` — new console script `pitwall-coach = "pitwall.coach.cli:main"` (now
+  **6** scripts; the wheel + `twine check` re-verified).
+- Tests: `tests/test_coach_cli.py` (13 — analyze persist/`--json`/`--model`/`--pb`, the
+  graceful-error exit codes, `show` round-trip, `list` + session filter), seeding an
+  on-disk store in the `data_dir` tmp dir and injecting a `MockLLMClient`.
 
 **P2-C1 delivered (re-verified 2026-06-04: ruff clean, 159 passed / 1 skipped, build +
 `twine check` pass — coach tests make zero network calls):**

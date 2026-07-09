@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 1 SHIPPED (2026-05-25). Phase 2 IN PROGRESS — chunks P2-C0 + P2-C1 DONE (C1 2026-06-04).**
+**Phase 1 SHIPPED (2026-05-25). Phase 2 IN PROGRESS — chunks P2-C0 + P2-C1 + P2-C2 DONE (C2 2026-06-04).**
 Phase 2 is the **single-agent coach**; the full chunked, multi-session plan lives at
 `~/.claude/plans/i-want-you-to-virtual-papert.md`. Locked: engine = a hand-rolled agentic
 tool-use loop on **Gemini** (free tier) behind a provider-agnostic `LLMClient` seam (a Claude
@@ -21,15 +21,29 @@ loop that drives the `LLMClient` through the query tools and terminates on the m
 (`GeminiClient` — lazy-imported `google-genai`, raw-JSON-schema tool path + a key sanitiser),
 `coach/config.py` (`CoachConfig` + a zero-dep `.env` loader / `resolve_api_key`), and a tracked
 `.env.example`. Tests mock the LLM (live Gemini test is env-gated, skipped in CI).
-**Next action: build chunk P2-C2** (the `pitwall-coach` CLI + entry point + milestone check-in).
-v0.1 scope is **ACC-only**; package name is **`pitwall`** (PyPI dist `pitwall-mcp`, import
-`pitwall`, console script `pitwall`).
+**P2-C2 (`pitwall-coach` CLI) shipped:** `coach/cli.py` — the new **`pitwall-coach`** console
+script with `analyze <lap_id> [--reference ID|--pb] [--model M] [--json]` (the only LLM-calling
+command; runs `analyze_lap`, persists, prints a human block or `--json`), `show <report_id>`, and
+`list [--session ID|--lap ID]`; a `format_report()` pretty-printer; an injectable `llm_factory`
+(default `GeminiClient.from_config`) so the CLI is fully mock-tested offline; graceful exit codes
+for every failure (unknown lap/report, missing key, `coach` extra absent, agent stall). Added
+`db.personal_best_lap` (for `--pb`) and the 6th entry point in `pyproject.toml`.
+**Next action: the Milestone B live check-in** (one real `GEMINI_API_KEY` run on an ingested lap —
+review report quality + token/latency, tune the prompt), then build **chunk P2-C3** (eval framework).
+**iRacing `.ibt` ingest added (2026-06-04):** `src/pitwall/games/iracing/` — a near-verbatim port of
+the sibling racing-telemetry-visualiser's `.ibt` decode layer (`ibt_types`/`ibt`/`normalize`) plus a
+pitwall canonical adapter (`mapping`/`reader.IRacingSource`); `pitwall-ingest file.ibt` routes by
+extension; behind a new optional `iracing` extra (`pyirsdk`+`pyyaml`, lazy-imported). The canonical
+pipeline is now genuinely cross-game (the coach/MCP layers work over iRacing laps unchanged). Verified
+on a real 90 MB MX-5 @ Rudskogen capture → 14 laps. See STATUS.md → *iRacing `.ibt` ingest* and
+`docs/channel-mapping.md`. Package name is **`pitwall`** (PyPI dist `pitwall-mcp`, import `pitwall`,
+console script `pitwall`).
 
 ### Current state — READ THIS FIRST
 
 **Canonical, always-current status lives in [`STATUS.md`](STATUS.md).** Read it before
 acting on anything in this section. Summary as of **2026-06-04** (re-verified: ruff
-clean, **159 passed / 1 skipped**, wheel+sdist build, `twine check` passes, end-to-end ingest of
+clean, **172 passed / 1 skipped**, wheel+sdist build, `twine check` passes, end-to-end ingest of
 the real 286 MB capture works):
 
 - ✅ **M1 (Foundation)** and ✅ **M2 (ACC reader)** are complete and verified; M2's
@@ -49,13 +63,18 @@ the real 286 MB capture works):
   5 console scripts are now `pitwall` (server, reads only), `pitwall-capture` (raw bytes →
   `.pwcap`), **`pitwall-ingest`** (writes the store), `pitwall-inspect`, `pitwall-scrub`.
 
-**Coding gotchas (live-verified, don't re-derive):** `g_lat = −accG[0]` (positive =
-right); ACC reports `trackSPlineLength == 0` so distances come from `TRACK_LENGTHS` in
-`naming.py` (nurburgring GP = 5148 m); **two concurrent `pitwall-capture` processes
-corrupt the recording — run exactly one**; lap/sector times are wall-clock, not ACC's
-unreliable `lastSectorTime`/`iLastTime`; the store runs in **WAL** (`db.connect` enables it
-for on-disk DBs only) so the server reads while `pitwall-ingest` writes — in-memory test
-DBs skip WAL.
+**Coding gotchas (live-verified, don't re-derive):** **ACC** `g_lat = −accG[0]` (positive =
+right) — but **iRacing is the OPPOSITE: `g_lat = LatAccel ÷ 9.80665` with NO negation**
+(iRacing's `LatAccel` is already positive-right; verified on a real left-hander). ACC reports
+`trackSPlineLength == 0` so distances come from `TRACK_LENGTHS` in `naming.py` (nurburgring GP
+= 5148 m) — iRacing instead supplies track length / sector layout / display names directly in
+the `.ibt` session-info YAML (no lookup tables). Other iRacing quirks: `Clutch` is inverted
+(`1 − Clutch`); there's no per-frame sector channel (`sector_index` is computed from
+`LapDistPct` vs `SplitTimeInfo.Sectors[].SectorStartPct`); `world_x/y/z` are None (GPS-only).
+**Two concurrent `pitwall-capture` processes corrupt the recording — run exactly one**;
+lap/sector times are wall-clock, not ACC's unreliable `lastSectorTime`/`iLastTime`; the store
+runs in **WAL** (`db.connect` enables it for on-disk DBs only) so the server reads while
+`pitwall-ingest` writes — in-memory test DBs skip WAL.
 
 Cadence is **autonomous batches with milestone check-ins** (Kenneth's choice).
 
